@@ -1,14 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Download } from 'lucide-react';
 import { exportTransactionsToExcel } from '@/lib/excel';
 import { filterTransactions } from '@/lib/filters';
+import { usePeriodFilter } from '@/context/PeriodFilterContext';
 import { useTransactions } from '@/context/TransactionContext';
 import { Button } from '@/components/ui/button';
 import { MonthYearFilter } from '@/components/filters/MonthYearFilter';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { BankStatementImport } from '@/components/transactions/BankStatementImport';
 import { TransactionTable } from '@/components/transactions/TransactionTable';
-import type { MonthFilter, TransactionSource, YearFilter } from '@/types/transaction';
+import type { TransactionSource } from '@/types/transaction';
 
 type AccountTabProps = {
   source: TransactionSource;
@@ -16,9 +17,7 @@ type AccountTabProps = {
 
 export function AccountTab({ source }: AccountTabProps) {
   const { transactions, addTransaction, deleteTransaction } = useTransactions();
-  const now = new Date();
-  const [month, setMonth] = useState<MonthFilter>(now.getMonth() + 1);
-  const [year, setYear] = useState<YearFilter>(now.getFullYear());
+  const { month, year, setMonth, setYear } = usePeriodFilter();
 
   const accountTransactions = useMemo(
     () => transactions.filter((transaction) => transaction.source === source),
@@ -64,7 +63,8 @@ export function AccountTab({ source }: AccountTabProps) {
         transactions={filtered}
         onDelete={deleteTransaction}
         showSource={false}
-        title={`${label} Transactions`}
+        variant={source === 'bank' ? 'statement' : 'simple'}
+        title={source === 'bank' ? 'Bank Statement' : `${label} Transactions`}
       />
     </div>
   );

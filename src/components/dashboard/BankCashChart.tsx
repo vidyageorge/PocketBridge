@@ -7,6 +7,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { BRAND_COLORS } from '@/lib/constants';
 import { formatCurrency } from '@/lib/currency';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -33,7 +34,7 @@ export function BankCashChart({ data }: BankCashChartProps) {
                   return [`${formatCurrency(Number(value ?? 0))} (net: ${formatCurrency(net)})`, 'Volume'];
                 }}
               />
-              <Bar dataKey="amount" fill="#BA7517" radius={[4, 4, 0, 0]} name="Volume" />
+              <Bar dataKey="amount" fill={BRAND_COLORS.chartGold} radius={[4, 4, 0, 0]} name="Volume" />
             </BarChart>
           </ResponsiveContainer>
         </div>

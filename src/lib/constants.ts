@@ -1,5 +1,20 @@
 export const STORAGE_KEY = 'pocketbridge_txs';
 
+export const COMPANY_NAME = 'Sixty Cubits Pvt Ltd';
+export const COMPANY_LOCATION = 'Chennai, Tamil Nadu';
+export const APP_NAME = 'PocketBridge';
+export const APP_TAGLINE = 'One stop for Bank | Cash | Procurement | Client payments';
+
+export const BRAND_COLORS = {
+  /** Charts only — UI buttons use navNavy */
+  chartTeal: '#0f6e56',
+  chartGold: '#ba7517',
+  navNavy: '#1a3b5d',
+  navYellow: '#f5a623',
+} as const;
+
+export const BRAND_LOGO_PATH = '/sixty-cubits-logo.png';
+
 export const INCOME_CATEGORIES = ['Client Payment', 'Salary', 'Other Income'] as const;
 
 export const EXPENSE_CATEGORIES = [
@@ -15,6 +30,8 @@ export const EXPENSE_CATEGORIES = [
 ] as const;
 
 export const CATEGORIES = [...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES] as const;
+
+export const PROCUREMENT_PAYMENT_STATUSES = ['Completed', 'Pending', 'Partial'] as const;
 
 export const MONTHS = [
   { value: 1, label: 'January' },

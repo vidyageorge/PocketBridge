@@ -52,7 +52,14 @@ export function BankStatementImport() {
         importTransactions(
           parsed.entries.map((entry) => ({
             date: entry.date,
+            valueDate: entry.valueDate,
             description: entry.description,
+            location: entry.location,
+            chqNo: entry.chqNo,
+            mode: entry.mode,
+            withdrawal: entry.withdrawal,
+            deposit: entry.deposit,
+            balance: entry.balance,
             category: inferCategoryFromDescription(entry.description, entry.type),
             type: entry.type,
             amount: entry.amount,
@@ -95,11 +102,6 @@ export function BankStatementImport() {
         <CardTitle>Import Bank Statement</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Upload any bank statement (CSV or Excel from HDFC, ICICI, SBI, Axis, etc.). The app reads
-          debits and credits automatically and adds them to your Bank Account — no template needed.
-        </p>
-
         <div
           className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 transition-colors ${
             isDragging ? 'border-primary bg-primary/5' : 'border-border'
@@ -123,10 +125,9 @@ export function BankStatementImport() {
           ) : (
             <Upload className="mb-3 h-8 w-8 text-muted-foreground" />
           )}
-          <p className="mb-2 text-sm font-medium">
+          <p className="mb-4 text-sm font-medium">
             {isProcessing ? 'Processing statement…' : 'Drop your bank statement here'}
           </p>
-          <p className="mb-4 text-xs text-muted-foreground">CSV, XLSX, or XLS — any bank format</p>
           <label className={`cursor-pointer ${isProcessing ? 'hidden' : ''}`}>
             <input
               type="file"
@@ -140,7 +141,7 @@ export function BankStatementImport() {
                 event.target.value = '';
               }}
             />
-            <span className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+            <span className="inline-flex h-10 items-center justify-center rounded-md bg-nav-navy px-4 py-2 text-sm font-medium text-nav-navy-foreground hover:bg-nav-navy/90">
               Choose Statement File
             </span>
           </label>
@@ -149,7 +150,7 @@ export function BankStatementImport() {
         {error && <p className="text-sm text-expense">{error}</p>}
 
         {result && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+          <div className="rounded-lg border border-border bg-primary/5 p-4">
             <div className="mb-2 flex items-center gap-2 text-primary">
               <CheckCircle2 className="h-5 w-5" />
               <p className="font-medium">
@@ -165,9 +166,6 @@ export function BankStatementImport() {
             {result.skipped > 0 && (
               <p className="mt-1 text-xs text-muted-foreground">{result.skipped} rows skipped</p>
             )}
-            <p className="mt-2 text-xs text-muted-foreground">
-              See them in the table below. Upload another file anytime to add more.
-            </p>
           </div>
         )}
       </CardContent>

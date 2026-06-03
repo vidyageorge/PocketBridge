@@ -2,40 +2,40 @@ export function normalizeKey(key: string): string {
   return key.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-export function parseDateValue(value: unknown): string | null {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
+function formatLocalDate(year: number, month: number, day: number): string | null {
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
   }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
 
+export function parseDateValue(value: unknown): string | null {
   if (typeof value === 'number') {
     return xlsxDateToIso(value);
   }
 
-  if (typeof value !== 'string') {
-    return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    const dayFirstMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    if (dayFirstMatch) {
+      const [, dayPart, monthPart, yearPart] = dayFirstMatch;
+      return formatLocalDate(Number(yearPart), Number(monthPart), Number(dayPart));
+    }
+
+    const shortYearMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2})$/);
+    if (shortYearMatch) {
+      const [, dayPart, monthPart, shortYear] = shortYearMatch;
+      const year = Number(shortYear) > 50 ? `19${shortYear}` : `20${shortYear}`;
+      return formatLocalDate(Number(year), Number(monthPart), Number(dayPart));
+    }
   }
 
-  const trimmed = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    return trimmed;
-  }
-
-  const slashMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-  if (slashMatch) {
-    const [, day, month, year] = slashMatch;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-  }
-
-  const dashMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2})$/);
-  if (dashMatch) {
-    const [, day, month, shortYear] = dashMatch;
-    const year = Number(shortYear) > 50 ? `19${shortYear}` : `20${shortYear}`;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-  }
-
-  const parsedDate = new Date(trimmed);
-  if (!Number.isNaN(parsedDate.getTime())) {
-    return parsedDate.toISOString().slice(0, 10);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return formatLocalDate(value.getFullYear(), value.getMonth() + 1, value.getDate());
   }
 
   return null;
@@ -91,6 +91,11 @@ export function getFieldValue(row: Record<string, unknown>, ...keys: string[]): 
   }
 
   return undefined;
+}
+
+export function parseOptionalText(value: unknown): string | undefined {
+  const text = parseDescription(value);
+  return text ?? undefined;
 }
 
 export function parseDescription(value: unknown): string | null {

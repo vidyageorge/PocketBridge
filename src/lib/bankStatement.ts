@@ -7,24 +7,26 @@ import {
   parseAmount,
   parseDateValue,
   parseDescription,
+  parseOptionalText,
 } from '@/lib/parseUtils';
 import type { BankStatementEntry, BankStatementPreview, TransactionType } from '@/types/transaction';
 
-const DATE_KEYS = [
+const TRAN_DATE_KEYS = [
+  'trandate',
   'date',
   'transactiondate',
   'txndate',
-  'valuedate',
   'postdate',
   'transaction date',
-  'value date',
   'txn date',
 ];
 
+const VALUE_DATE_KEYS = ['valuedate', 'value date'];
+
 const DESCRIPTION_KEYS = [
+  'particulars',
   'narration',
   'description',
-  'particulars',
   'remarks',
   'details',
   'transactiondetails',
@@ -37,16 +39,22 @@ const DESCRIPTION_KEYS = [
   'paymentdetails',
 ];
 
+const LOCATION_KEYS = ['location'];
+
+const CHQ_KEYS = ['chqno', 'chq', 'chequeno', 'chequenumber'];
+
+const MODE_KEYS = ['mode'];
+
 const DEBIT_KEYS = [
-  'debit',
+  'withdrawals',
   'withdrawal',
+  'debit',
   'withdrawalamt',
   'withdrawalamount',
   'debitamount',
   'dr',
   'amountdebited',
   'paidout',
-  'withdrawals',
   'debitinr',
   'withdrawalinr',
   'moneyout',
@@ -54,33 +62,29 @@ const DEBIT_KEYS = [
 ];
 
 const CREDIT_KEYS = [
-  'credit',
+  'deposits',
   'deposit',
+  'credit',
   'depositamt',
   'depositamount',
   'creditamount',
   'cr',
   'amountcredited',
-  'deposits',
   'creditinr',
   'depositinr',
   'moneyin',
 ];
 
-const TYPE_KEYS = ['type', 'drcr', 'drcr', 'debitcredit', 'transactiontype', 'crdr'];
+const BALANCE_KEYS = ['balance', 'balanceinr', 'closingbalance', 'runningbalance'];
+
+const TYPE_KEYS = ['type', 'drcr', 'debitcredit', 'transactiontype', 'crdr'];
 
 const SKIP_COLUMN_KEYS = [
-  'balance',
-  'closingbalance',
-  'runningbalance',
-  'availablebalance',
-  'chq',
-  'cheque',
-  'referenceno',
-  'refno',
   'serial',
   'sno',
   'srno',
+  'referenceno',
+  'refno',
 ];
 
 function findHeaderRow(rawRows: unknown[][]): number {
@@ -92,7 +96,7 @@ function findHeaderRow(rawRows: unknown[][]): number {
 
     const normalizedCells = row.map((cell) => normalizeKey(String(cell ?? '')));
     const hasDate = normalizedCells.some((cell) =>
-      DATE_KEYS.some((key) => cell.includes(normalizeKey(key))),
+      TRAN_DATE_KEYS.some((key) => cell.includes(normalizeKey(key))),
     );
     const hasDebit = normalizedCells.some((cell) =>
       DEBIT_KEYS.some((key) => cell.includes(normalizeKey(key))),
@@ -103,11 +107,8 @@ function findHeaderRow(rawRows: unknown[][]): number {
     const hasDescription = normalizedCells.some((cell) =>
       DESCRIPTION_KEYS.some((key) => cell.includes(normalizeKey(key))),
     );
-    const hasAmount = normalizedCells.some(
-      (cell) => cell === 'amount' || cell.includes('amount') || cell.includes('amt'),
-    );
 
-    if (hasDate && (hasDebit || hasCredit || hasAmount || hasDescription)) {
+    if (hasDate && (hasDebit || hasCredit || hasDescription)) {
       return rowIndex;
     }
   }
@@ -128,16 +129,24 @@ function parseSheet(sheet: XLSX.WorkSheet): BankStatementPreview {
 
 export async function parseBankStatementFile(file: File): Promise<BankStatementPreview> {
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, raw: false });
+  const workbook = XLSX.read(buffer, {
+    type: 'array',
+    cellDates: false,
+    raw: true,
+  });
 
   let bestResult: BankStatementPreview = {
     entries: [],
     skipped: [],
     detectedColumns: {
-      date: 'Not detected',
+      tranDate: 'Not detected',
+      valueDate: 'Not detected',
       description: 'Not detected',
+      location: 'Not detected',
+      chqNo: 'Not detected',
       debit: 'Not detected',
       credit: 'Not detected',
+      balance: 'Not detected',
     },
   };
 
@@ -169,13 +178,25 @@ function inferDescriptionFromRow(row: Record<string, unknown>): string | null {
     if (SKIP_COLUMN_KEYS.some((skipKey) => normalizedKey.includes(skipKey))) {
       continue;
     }
-    if (DATE_KEYS.some((dateKey) => normalizedKey.includes(normalizeKey(dateKey)))) {
+    if (TRAN_DATE_KEYS.some((dateKey) => normalizedKey.includes(normalizeKey(dateKey)))) {
+      continue;
+    }
+    if (VALUE_DATE_KEYS.some((dateKey) => normalizedKey.includes(normalizeKey(dateKey)))) {
       continue;
     }
     if (DEBIT_KEYS.some((debitKey) => normalizedKey.includes(normalizeKey(debitKey)))) {
       continue;
     }
     if (CREDIT_KEYS.some((creditKey) => normalizedKey.includes(normalizeKey(creditKey)))) {
+      continue;
+    }
+    if (BALANCE_KEYS.some((balanceKey) => normalizedKey.includes(normalizeKey(balanceKey)))) {
+      continue;
+    }
+    if (LOCATION_KEYS.some((locationKey) => normalizedKey.includes(normalizeKey(locationKey)))) {
+      continue;
+    }
+    if (CHQ_KEYS.some((chqKey) => normalizedKey.includes(normalizeKey(chqKey)))) {
       continue;
     }
 
@@ -220,6 +241,24 @@ function inferAmountsFromRow(row: Record<string, unknown>): {
   return { debitAmount, creditAmount };
 }
 
+function extractStatementFields(row: Record<string, unknown>) {
+  const tranDate =
+    parseDateValue(getFieldValue(row, ...TRAN_DATE_KEYS)) ??
+    parseDateValue(getFieldValue(row, ...VALUE_DATE_KEYS));
+  const valueDate = parseDateValue(getFieldValue(row, ...VALUE_DATE_KEYS));
+
+  return {
+    date: tranDate,
+    valueDate: valueDate && valueDate !== tranDate ? valueDate : undefined,
+    description: inferDescriptionFromRow(row),
+    location: parseOptionalText(getFieldValue(row, ...LOCATION_KEYS)),
+    chqNo: parseOptionalText(getFieldValue(row, ...CHQ_KEYS)),
+    mode: parseOptionalText(getFieldValue(row, ...MODE_KEYS)),
+    balance: parseAmount(getFieldValue(row, ...BALANCE_KEYS)) ?? undefined,
+    ...inferAmountsFromRow(row),
+  };
+}
+
 function extractTransactionsFromStatement(
   rows: Record<string, unknown>[],
 ): BankStatementPreview {
@@ -228,9 +267,7 @@ function extractTransactionsFromStatement(
 
   rows.forEach((row, index) => {
     const rowNumber = index + 2;
-    const date = parseDateValue(getFieldValue(row, ...DATE_KEYS));
-    const description = inferDescriptionFromRow(row);
-    const { debitAmount, creditAmount } = inferAmountsFromRow(row);
+    const fields = extractStatementFields(row);
     const typeIndicator = getFieldValue(row, ...TYPE_KEYS);
     const rawAmount = getFieldValue(
       row,
@@ -242,20 +279,29 @@ function extractTransactionsFromStatement(
     const singleAmount = parseAmount(rawAmount);
 
     if (
-      !date &&
-      !description &&
-      debitAmount === null &&
-      creditAmount === null &&
+      !fields.date &&
+      !fields.description &&
+      fields.debitAmount === null &&
+      fields.creditAmount === null &&
       singleAmount === null
     ) {
       return;
     }
 
+    if (fields.description && /^b\/f$/i.test(fields.description.trim())) {
+      return;
+    }
+
     const parsed = resolveStatementEntry({
-      date,
-      description,
-      debitAmount,
-      creditAmount,
+      date: fields.date,
+      valueDate: fields.valueDate,
+      description: fields.description,
+      location: fields.location,
+      chqNo: fields.chqNo,
+      mode: fields.mode,
+      balance: fields.balance,
+      debitAmount: fields.debitAmount,
+      creditAmount: fields.creditAmount,
       singleAmount,
       rawAmount,
       typeIndicator,
@@ -274,10 +320,14 @@ function extractTransactionsFromStatement(
 
   const firstRow = rows[0] ?? {};
   const detectedColumns = {
-    date: findDetectedColumn(firstRow, DATE_KEYS),
+    tranDate: findDetectedColumn(firstRow, TRAN_DATE_KEYS),
+    valueDate: findDetectedColumn(firstRow, VALUE_DATE_KEYS),
     description: findDetectedColumn(firstRow, DESCRIPTION_KEYS),
+    location: findDetectedColumn(firstRow, LOCATION_KEYS),
+    chqNo: findDetectedColumn(firstRow, CHQ_KEYS),
     debit: findDetectedColumn(firstRow, DEBIT_KEYS),
     credit: findDetectedColumn(firstRow, CREDIT_KEYS),
+    balance: findDetectedColumn(firstRow, BALANCE_KEYS),
   };
 
   return { entries, skipped, detectedColumns };
@@ -285,7 +335,12 @@ function extractTransactionsFromStatement(
 
 function resolveStatementEntry(input: {
   date: string | null;
+  valueDate?: string;
   description: string | null;
+  location?: string;
+  chqNo?: string;
+  mode?: string;
+  balance?: number;
   debitAmount: number | null;
   creditAmount: number | null;
   singleAmount: number | null;
@@ -297,7 +352,12 @@ function resolveStatementEntry(input: {
   | { skipped: { row: number; reason: string } } {
   const {
     date,
+    valueDate,
     description,
+    location,
+    chqNo,
+    mode,
+    balance,
     debitAmount,
     creditAmount,
     singleAmount,
@@ -312,32 +372,42 @@ function resolveStatementEntry(input: {
 
   let amount: number | null = null;
   let type: TransactionType | null = null;
+  let withdrawal: number | undefined;
+  let deposit: number | undefined;
 
   if (debitAmount !== null && debitAmount > 0) {
     amount = debitAmount;
     type = 'expense';
+    withdrawal = debitAmount;
   } else if (creditAmount !== null && creditAmount > 0) {
     amount = creditAmount;
     type = 'income';
+    deposit = creditAmount;
   } else if (singleAmount !== null && isDebitIndicator(typeIndicator)) {
     amount = singleAmount;
     type = 'expense';
+    withdrawal = singleAmount;
   } else if (singleAmount !== null && isCreditIndicator(typeIndicator)) {
     amount = singleAmount;
     type = 'income';
+    deposit = singleAmount;
   } else if (singleAmount !== null && !typeIndicator) {
     if (typeof rawAmount === 'number' && rawAmount < 0) {
       amount = Math.abs(rawAmount);
       type = 'expense';
+      withdrawal = amount;
     } else if (typeof rawAmount === 'string' && rawAmount.trim().startsWith('-')) {
       amount = singleAmount;
       type = 'expense';
+      withdrawal = singleAmount;
     } else if (typeof rawAmount === 'number' && rawAmount > 0) {
       amount = rawAmount;
       type = 'income';
+      deposit = amount;
     } else if (typeof rawAmount === 'string' && rawAmount.trim().length > 0) {
       amount = singleAmount;
       type = 'income';
+      deposit = singleAmount;
     }
   }
 
@@ -357,7 +427,19 @@ function resolveStatementEntry(input: {
   }
 
   return {
-    entry: { date, description, amount, type },
+    entry: {
+      date,
+      valueDate,
+      description,
+      location,
+      chqNo,
+      mode,
+      withdrawal,
+      deposit,
+      balance,
+      amount,
+      type,
+    },
   };
 }
 

@@ -1,18 +1,27 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #0f6e56;
+  /* Buttons & active actions — navy (workbook header) */
+  --color-primary: #1a3b5d;
   --color-primary-foreground: #ffffff;
+  /* Charts & brand gold highlights */
   --color-accent: #ba7517;
   --color-accent-foreground: #ffffff;
   --color-income: #15803d;
   --color-expense: #dc2626;
-  --color-muted: #f4f4f5;
-  --color-muted-foreground: #71717a;
-  --color-border: #e4e4e7;
+  /* Fields, inactive tabs, table strips — workbook amber yellow */
+  --color-muted: #f5a623;
+  --color-muted-foreground: #1a1a1a;
+  --color-border: #1a3b5d;
   --color-card: #ffffff;
   --color-background: #ffffff;
+  --color-surface: #fff9eb;
+  --color-surface-soft: #fffef7;
   --color-foreground: #18181b;
+  --color-nav-navy: #1a3b5d;
+  --color-nav-navy-foreground: #ffffff;
+  --color-nav-yellow: #f5a623;
+  --color-nav-yellow-foreground: #1a1a1a;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -23,13 +32,40 @@
 body {
   margin: 0;
   font-family: var(--font-sans);
-  background: var(--color-background);
   color: var(--color-foreground);
   -webkit-font-smoothing: antialiased;
+  background-color: var(--color-background);
+  background-image: linear-gradient(
+    145deg,
+    #fff4d6 0%,
+    #fffaf0 28%,
+    #ffffff 55%,
+    #ffffff 100%
+  );
+  background-attachment: fixed;
+  min-height: 100svh;
 }
 
 #root {
   min-height: 100svh;
   display: flex;
   flex-direction: column;
+}
+
+@layer components {
+  .pb-page-surface {
+    background: linear-gradient(
+      165deg,
+      color-mix(in srgb, #f5a623 18%, white) 0%,
+      #fffef9 40%,
+      transparent 100%
+    );
+  }
+
+  .pb-content-card {
+    border-radius: 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--color-border) 35%, white);
+    background-color: rgb(255 255 255 / 0.92);
+    box-shadow: 0 1px 3px rgb(26 59 93 / 0.06);
+  }
 }

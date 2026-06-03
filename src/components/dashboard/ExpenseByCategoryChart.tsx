@@ -7,6 +7,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { BRAND_COLORS } from '@/lib/constants';
 import { formatCurrency } from '@/lib/currency';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -39,10 +40,8 @@ export function ExpenseByCategoryChart({ data }: ExpenseByCategoryChartProps) {
                   tick={{ fontSize: 12 }}
                 />
                 <YAxis tickFormatter={(value) => `₹${value / 1000}k`} />
-                <Tooltip
-                  formatter={(value) => formatCurrency(Number(value ?? 0))}
-                />
-                <Bar dataKey="amount" fill="#0F6E56" radius={[4, 4, 0, 0]} />
+                <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
+                <Bar dataKey="amount" fill={BRAND_COLORS.chartTeal} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

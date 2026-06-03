@@ -17,6 +17,35 @@ export function filterTransactions(
   });
 }
 
+export function inferStatementPeriod(
+  fileName: string,
+  dates: string[],
+): { month: number; year: number } | null {
+  const fileMatch = fileName.match(/_(\d{4})_M(\d{2})/i);
+  if (fileMatch) {
+    return { year: Number(fileMatch[1]), month: Number(fileMatch[2]) };
+  }
+
+  if (dates.length === 0) {
+    return null;
+  }
+
+  const periodCounts = new Map<string, number>();
+  dates.forEach((date) => {
+    const [yearPart, monthPart] = date.split('-');
+    const key = `${yearPart}-${monthPart}`;
+    periodCounts.set(key, (periodCounts.get(key) ?? 0) + 1);
+  });
+
+  const dominantPeriod = [...periodCounts.entries()].sort((left, right) => right[1] - left[1])[0];
+  if (!dominantPeriod) {
+    return null;
+  }
+
+  const [yearPart, monthPart] = dominantPeriod[0].split('-').map(Number);
+  return { year: yearPart, month: monthPart };
+}
+
 export function getAvailableYears(transactions: Transaction[]): number[] {
   const years = new Set(transactions.map((transaction) => Number(transaction.date.split('-')[0])));
   const currentYear = new Date().getFullYear();

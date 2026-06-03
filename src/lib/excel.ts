@@ -15,11 +15,18 @@ export function exportTransactionsToExcel(
   );
 
   const transactionRows = filtered.map((transaction) => ({
-    Date: transaction.date,
-    Description: transaction.desc,
+    'Tran Date': transaction.date,
+    'Value Date': transaction.valueDate ?? transaction.date,
+    Particulars: transaction.desc,
+    Location: transaction.location ?? '',
+    'Chq.No': transaction.chqNo ?? '',
+    Withdrawals:
+      transaction.withdrawal ??
+      (transaction.type === 'expense' ? transaction.amount : ''),
+    Deposits:
+      transaction.deposit ?? (transaction.type === 'income' ? transaction.amount : ''),
+    'Balance (INR)': transaction.balance ?? '',
     Category: transaction.cat,
-    Type: transaction.type,
-    Amount: transaction.amount,
     Source: transaction.source,
   }));
 
