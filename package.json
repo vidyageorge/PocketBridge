@@ -7,6 +7,8 @@
     "dev": "vite",
     "dev:server": "npm run dev --prefix server",
     "setup:server": "npm install --prefix server",
+    "start:api": "node server/index.mjs",
+    "build:api": "npm install --prefix server",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
