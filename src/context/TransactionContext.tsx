@@ -29,6 +29,7 @@ type TransactionContextValue = {
     source: TransactionSource,
   ) => void;
   deleteTransaction: (id: number) => void;
+  updateTransaction: (transaction: Transaction) => void;
   clearTransactionsBySource: (source: TransactionSource) => void;
   importCashFromClientPayments: (records: ClientPaymentRecord[]) => number;
   importTransactions: (
@@ -64,6 +65,43 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   const deleteTransaction = useCallback((id: number) => {
     setTransactions((current) => {
       const nextTransactions = current.filter((transaction) => transaction.id !== id);
+      saveTransactions(nextTransactions);
+      return nextTransactions;
+    });
+  }, []);
+
+  const updateTransaction = useCallback((transaction: Transaction) => {
+    setTransactions((current) => {
+      const nextTransactions = current.map((existing) => {
+        if (existing.id !== transaction.id) {
+          return existing;
+        }
+
+        const hasStatementColumns =
+          existing.withdrawal !== undefined ||
+          existing.deposit !== undefined ||
+          existing.balance !== undefined;
+
+        if (!hasStatementColumns) {
+          return { ...transaction, source: existing.source };
+        }
+
+        if (transaction.type === 'expense') {
+          return {
+            ...transaction,
+            source: existing.source,
+            withdrawal: transaction.amount,
+            deposit: undefined,
+          };
+        }
+
+        return {
+          ...transaction,
+          source: existing.source,
+          deposit: transaction.amount,
+          withdrawal: undefined,
+        };
+      });
       saveTransactions(nextTransactions);
       return nextTransactions;
     });
@@ -186,6 +224,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       balanceSnapshots,
       addTransaction,
       deleteTransaction,
+      updateTransaction,
       clearTransactionsBySource,
       importCashFromClientPayments,
       importTransactions,
@@ -195,6 +234,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       balanceSnapshots,
       addTransaction,
       deleteTransaction,
+      updateTransaction,
       clearTransactionsBySource,
       importCashFromClientPayments,
       importTransactions,

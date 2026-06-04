@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { getDisplaySerialNumber } from '@/lib/tablePagination';
 import { useTablePagination } from '@/hooks/useTablePagination';
 import { TablePagination } from '@/components/ui/TablePagination';
+import { confirmDeleteEntry } from '@/lib/confirmDelete';
 import { formatCurrency } from '@/lib/currency';
 import {
   CLIENT_PAYMENT_BLANK_FILTER,
@@ -29,6 +30,7 @@ type ClientPaymentTableProps = {
   title?: string;
   showSplitAmounts?: boolean;
   showProjectColumn?: boolean;
+  onEdit?: (record: ClientPaymentRecord) => void;
   onDelete?: (id: number) => void;
 };
 
@@ -151,8 +153,10 @@ export function ClientPaymentTable({
   title = 'Client payments',
   showSplitAmounts = true,
   showProjectColumn = false,
+  onEdit,
   onDelete,
 }: ClientPaymentTableProps) {
+  const showActions = Boolean(onEdit || onDelete);
   const hasActiveFilters = Object.values(filters).some((value) => value.trim().length > 0);
 
   const filterFields = useMemo(() => {
@@ -215,7 +219,7 @@ export function ClientPaymentTable({
                   <th className="px-2 py-3 font-medium text-right">Amount</th>
                   <th className="px-2 py-3 font-medium">Invoice / Remark</th>
                   <th className="px-2 py-3 font-medium">Comment</th>
-                  {onDelete && <th className="px-2 py-3 font-medium text-right">Remove</th>}
+                  {showActions && <th className="px-2 py-3 font-medium text-right">Actions</th>}
                 </tr>
                 <tr className="border-b border-border bg-muted/50">
                   {BASE_FILTER_FIELDS.map((field) => (
@@ -254,7 +258,7 @@ export function ClientPaymentTable({
                       />
                     </th>
                   ))}
-                  {onDelete && (
+                  {showActions && (
                     <th className="px-2 py-2">
                       <EmptyFilterCell />
                     </th>
@@ -288,21 +292,37 @@ export function ClientPaymentTable({
                     <td className="px-2 py-3 max-w-xs text-muted-foreground">
                       {record.comment || '—'}
                     </td>
-                    {onDelete && (
+                    {showActions && (
                       <td className="px-2 py-3 text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (window.confirm(`Remove payment "${record.description}"?`)) {
-                              onDelete(record.id);
-                            }
-                          }}
-                          aria-label={`Remove payment ${record.description}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          {onEdit && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onEdit(record)}
+                              aria-label={`Edit payment ${record.description}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {onDelete && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const summary = `${record.paymentDate} — ${record.description} (${record.sheetProject})`;
+                                if (confirmDeleteEntry(summary)) {
+                                  onDelete(record.id);
+                                }
+                              }}
+                              aria-label={`Remove payment ${record.description}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>

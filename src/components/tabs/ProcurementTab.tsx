@@ -51,11 +51,6 @@ export function ProcurementTab() {
   };
 
   const handleDelete = (id: number) => {
-    const record = records.find((entry) => entry.id === id);
-    const label = record?.description ?? 'this order';
-    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) {
-      return;
-    }
     deleteRecord(id);
     if (editingRecord?.id === id) {
       setEditingRecord(null);

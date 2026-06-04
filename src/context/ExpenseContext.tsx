@@ -13,14 +13,22 @@ import {
   parseExpenseWorkbook,
 } from '@/lib/expense';
 import { loadExpenseData, saveExpenseData } from '@/lib/expenseStorage';
-import type { EmployeeExpenseInput, ExpenseData, ProjectExpenseInput } from '@/types/expense';
+import type {
+  EmployeeExpenseInput,
+  EmployeeExpenseRecord,
+  ExpenseData,
+  ProjectExpenseInput,
+  ProjectExpenseRecord,
+} from '@/types/expense';
 
 type ExpenseContextValue = {
   data: ExpenseData;
   replaceFromFile: (file: File) => Promise<number>;
   addEmployeeExpense: (record: EmployeeExpenseInput) => void;
+  updateEmployeeExpense: (record: EmployeeExpenseRecord) => void;
   deleteEmployeeExpense: (id: number) => void;
   addProjectExpense: (record: ProjectExpenseInput) => void;
+  updateProjectExpense: (record: ProjectExpenseRecord) => void;
   deleteProjectExpense: (id: number) => void;
 };
 
@@ -56,6 +64,17 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const updateEmployeeExpense = useCallback((record: EmployeeExpenseRecord) => {
+    setData((current) =>
+      persistExpenseData({
+        ...current,
+        employee: current.employee.map((existing) =>
+          existing.id === record.id ? record : existing,
+        ),
+      }),
+    );
+  }, []);
+
   const deleteEmployeeExpense = useCallback((id: number) => {
     setData((current) =>
       persistExpenseData({
@@ -79,6 +98,17 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const updateProjectExpense = useCallback((record: ProjectExpenseRecord) => {
+    setData((current) =>
+      persistExpenseData({
+        ...current,
+        project: current.project.map((existing) =>
+          existing.id === record.id ? record : existing,
+        ),
+      }),
+    );
+  }, []);
+
   const deleteProjectExpense = useCallback((id: number) => {
     setData((current) =>
       persistExpenseData({
@@ -93,16 +123,20 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
       data,
       replaceFromFile,
       addEmployeeExpense,
+      updateEmployeeExpense,
       deleteEmployeeExpense,
       addProjectExpense,
+      updateProjectExpense,
       deleteProjectExpense,
     }),
     [
       data,
       replaceFromFile,
       addEmployeeExpense,
+      updateEmployeeExpense,
       deleteEmployeeExpense,
       addProjectExpense,
+      updateProjectExpense,
       deleteProjectExpense,
     ],
   );

@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
-import { Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { MONTHS } from '@/lib/constants';
+import { confirmDeleteEntry } from '@/lib/confirmDelete';
 import { formatCurrency } from '@/lib/currency';
 import {
   aggregateProjectMonthlySummary,
@@ -12,6 +13,7 @@ import { ProjectExpenseForm } from '@/components/expenses/ProjectExpenseForm';
 import { ExpenseMetricCards } from '@/components/expenses/ExpenseMetricCards';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { ProjectExpenseRecord } from '@/types/expense';
 
 type ProjectExpensePanelProps = {
   month: number;
@@ -23,6 +25,7 @@ type ProjectExpensePanelProps = {
  */
 export function ProjectExpensePanel({ month, year }: ProjectExpensePanelProps) {
   const { data, deleteProjectExpense } = useExpenses();
+  const [editingRecord, setEditingRecord] = useState<ProjectExpenseRecord | null>(null);
 
   const filteredByPeriod = useMemo(() => {
     const records = filterByPeriod(data.project, month, year);
@@ -56,7 +59,12 @@ export function ProjectExpensePanel({ month, year }: ProjectExpensePanelProps) {
 
   return (
     <div className="space-y-6">
-      <ProjectExpenseForm month={month} year={year} />
+      <ProjectExpenseForm
+        month={month}
+        year={year}
+        editingRecord={editingRecord}
+        onCancelEdit={() => setEditingRecord(null)}
+      />
 
       <ExpenseMetricCards summary={summary} />
 
@@ -129,7 +137,7 @@ export function ProjectExpensePanel({ month, year }: ProjectExpensePanelProps) {
                     <th className="px-2 py-3 font-medium">Project</th>
                     <th className="px-2 py-3 font-medium">Type</th>
                     <th className="px-2 py-3 font-medium text-right">Amount</th>
-                    <th className="px-2 py-3 font-medium text-right">Remove</th>
+                    <th className="px-2 py-3 font-medium text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -144,23 +152,34 @@ export function ProjectExpensePanel({ month, year }: ProjectExpensePanelProps) {
                         {formatCurrency(record.amount)}
                       </td>
                       <td className="px-2 py-3 text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Remove ${record.description} for ${record.projectCode}?`,
-                              )
-                            ) {
-                              deleteProjectExpense(record.id);
-                            }
-                          }}
-                          aria-label={`Remove entry for ${record.projectCode}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setEditingRecord(record)}
+                            aria-label={`Edit entry for ${record.projectCode}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const summary = `${record.paymentDate} — ${record.description} (${record.projectCode})`;
+                              if (confirmDeleteEntry(summary)) {
+                                deleteProjectExpense(record.id);
+                                if (editingRecord?.id === record.id) {
+                                  setEditingRecord(null);
+                                }
+                              }
+                            }}
+                            aria-label={`Remove entry for ${record.projectCode}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}

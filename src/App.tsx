@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CustomOptionsProvider } from '@/context/CustomOptionsContext';
 import { DataBackendProvider } from '@/context/DataBackendProvider';
 import { ClientPaymentProvider } from '@/context/ClientPaymentContext';
 import { ExpenseProvider } from '@/context/ExpenseContext';
@@ -117,19 +118,21 @@ function AppContent() {
 export default function App() {
   return (
     <DataBackendProvider>
-    <TransactionProvider>
-      <ProcurementProvider>
-        <ClientPaymentProvider>
-          <ExpenseProvider>
-            <PeriodFilterProvider>
+      <CustomOptionsProvider>
+        <TransactionProvider>
+          <ProcurementProvider>
+            <ClientPaymentProvider>
+              <ExpenseProvider>
+                <PeriodFilterProvider>
               <PeriodFilterBootstrap>
                 <AppContent />
               </PeriodFilterBootstrap>
-            </PeriodFilterProvider>
-          </ExpenseProvider>
-        </ClientPaymentProvider>
-      </ProcurementProvider>
-    </TransactionProvider>
+                </PeriodFilterProvider>
+              </ExpenseProvider>
+            </ClientPaymentProvider>
+          </ProcurementProvider>
+        </TransactionProvider>
+      </CustomOptionsProvider>
     </DataBackendProvider>
   );
 }

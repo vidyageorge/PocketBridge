@@ -3,6 +3,7 @@ import { getDisplaySerialNumber } from '@/lib/tablePagination';
 import { useTablePagination } from '@/hooks/useTablePagination';
 import { TablePagination } from '@/components/ui/TablePagination';
 import { Pencil, Trash2 } from 'lucide-react';
+import { confirmDeleteEntry } from '@/lib/confirmDelete';
 import { formatCurrency } from '@/lib/currency';
 import {
   getProcurementColumnOptions,
@@ -246,7 +247,12 @@ export function ProcurementTable({
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => onDelete(record.id)}
+                                onClick={() => {
+                                  const summary = `${record.orderDate} — ${record.description} (${record.supplier})`;
+                                  if (confirmDeleteEntry(summary)) {
+                                    onDelete(record.id);
+                                  }
+                                }}
                                 aria-label={`Delete ${record.description}`}
                               >
                                 <Trash2 className="h-4 w-4" />

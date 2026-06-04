@@ -1,39 +1,55 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { EMPLOYEE_EXPENSE_CATEGORIES } from '@/lib/constants';
 import { defaultExpensePaymentDate, getEmployeeNames } from '@/lib/expense';
+import { useCustomOptions } from '@/context/CustomOptionsContext';
 import { useExpenses } from '@/context/ExpenseContext';
+import { CreatableSelect } from '@/components/ui/CreatableSelect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import type { EmployeeExpenseRecord } from '@/types/expense';
 
 type EmployeeExpenseFormProps = {
   month: number;
   year: number;
+  editingRecord?: EmployeeExpenseRecord | null;
+  onCancelEdit?: () => void;
 };
 
 /**
- * Form to add an employee expense line for the selected month.
+ * Form to add or edit an employee expense line for the selected month.
  */
-export function EmployeeExpenseForm({ month, year }: EmployeeExpenseFormProps) {
-  const { data, addEmployeeExpense } = useExpenses();
+export function EmployeeExpenseForm({
+  month,
+  year,
+  editingRecord = null,
+  onCancelEdit,
+}: EmployeeExpenseFormProps) {
+  const { data, addEmployeeExpense, updateEmployeeExpense } = useExpenses();
+  const { getOptions, addOption } = useCustomOptions();
+  const expenseTypes = getOptions('employeeExpenseCategories');
+  const isEditing = editingRecord !== null;
   const [employeeName, setEmployeeName] = useState('');
   const [paymentDate, setPaymentDate] = useState(() => defaultExpensePaymentDate(month, year));
-  const [description, setDescription] = useState<string>(EMPLOYEE_EXPENSE_CATEGORIES[3]);
+  const [description, setDescription] = useState(expenseTypes[0] ?? '');
   const [amount, setAmount] = useState('');
 
   useEffect(() => {
-    setPaymentDate(defaultExpensePaymentDate(month, year));
-  }, [month, year]);
+    if (!editingRecord) {
+      setPaymentDate(defaultExpensePaymentDate(month, year));
+      return;
+    }
 
-  const knownEmployees = useMemo(() => getEmployeeNames(data.employee), [data.employee]);
+    setEmployeeName(editingRecord.employeeName);
+    setPaymentDate(editingRecord.paymentDate || defaultExpensePaymentDate(month, year));
+    setDescription(editingRecord.description);
+    setAmount(String(editingRecord.amount));
+  }, [editingRecord, month, year]);
+
+  const knownEmployees = useMemo(
+    () => getOptions('employeeNames', getEmployeeNames(data.employee)),
+    [data.employee, getOptions],
+  );
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -48,6 +64,18 @@ export function EmployeeExpenseForm({ month, year }: EmployeeExpenseFormProps) {
     const [dateYear, dateMonth] = paymentDate.split('-').map(Number);
     if (dateMonth !== month || dateYear !== year) {
       window.alert(`Date must fall in ${month}/${year} for the selected period.`);
+      return;
+    }
+
+    if (isEditing && editingRecord) {
+      updateEmployeeExpense({
+        ...editingRecord,
+        description,
+        employeeName: trimmedName,
+        paymentDate,
+        amount: parsedAmount,
+      });
+      onCancelEdit?.();
       return;
     }
 
@@ -70,25 +98,23 @@ export function EmployeeExpenseForm({ month, year }: EmployeeExpenseFormProps) {
   return (
     <Card className="border-border/80 bg-white/95">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Add employee payment</CardTitle>
+        <CardTitle className="text-base">
+          {isEditing ? 'Edit employee payment' : 'Add employee payment'}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-2">
             <Label htmlFor="employee-name">Employee name</Label>
-            <Input
+            <CreatableSelect
               id="employee-name"
-              list="employee-name-suggestions"
-              value={employeeName}
-              onChange={(event) => setEmployeeName(event.target.value)}
-              placeholder="e.g. VINOTH"
-              required
+              value={employeeName || knownEmployees[0] || ''}
+              onValueChange={setEmployeeName}
+              options={knownEmployees}
+              onAddOption={(label) => addOption('employeeNames', label, getEmployeeNames(data.employee))}
+              placeholder="Select employee"
+              addLabel="Add new name"
             />
-            <datalist id="employee-name-suggestions">
-              {knownEmployees.map((name) => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
           </div>
 
           <div className="space-y-2">
@@ -104,18 +130,14 @@ export function EmployeeExpenseForm({ month, year }: EmployeeExpenseFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="expense-type">Type</Label>
-            <Select value={description} onValueChange={setDescription}>
-              <SelectTrigger id="expense-type">
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent>
-                {EMPLOYEE_EXPENSE_CATEGORIES.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CreatableSelect
+              id="expense-type"
+              value={description}
+              onValueChange={setDescription}
+              options={expenseTypes}
+              onAddOption={(label) => addOption('employeeExpenseCategories', label)}
+              addLabel="Add new type"
+            />
           </div>
 
           <div className="space-y-2">
@@ -132,10 +154,15 @@ export function EmployeeExpenseForm({ month, year }: EmployeeExpenseFormProps) {
             />
           </div>
 
-          <div className="flex items-end">
+          <div className="flex flex-wrap items-end gap-2">
             <Button type="submit" className="w-full sm:w-auto">
-              Add entry
+              {isEditing ? 'Save changes' : 'Add entry'}
             </Button>
+            {isEditing && onCancelEdit && (
+              <Button type="button" variant="outline" onClick={onCancelEdit}>
+                Cancel
+              </Button>
+            )}
           </div>
         </form>
       </CardContent>

@@ -37,6 +37,7 @@ type ClientPaymentContextValue = {
   addProject: (input: AddClientProjectInput) => string | null;
   addClient: (clientName: string) => string | null;
   addPayment: (input: ClientPaymentInput, useSplitAmounts: boolean) => boolean;
+  updatePayment: (record: ClientPaymentRecord) => void;
   deletePayment: (id: number) => void;
 };
 
@@ -164,6 +165,12 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
     [records, registry],
   );
 
+  const updatePayment = useCallback((record: ClientPaymentRecord) => {
+    setRecords((current) =>
+      persistRecords(current.map((existing) => (existing.id === record.id ? record : existing))),
+    );
+  }, []);
+
   const deletePayment = useCallback((id: number) => {
     setRecords((current) => persistRecords(current.filter((record) => record.id !== id)));
   }, []);
@@ -176,9 +183,19 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
       addProject,
       addClient,
       addPayment,
+      updatePayment,
       deletePayment,
     }),
-    [records, registry, replaceFromFile, addProject, addClient, addPayment, deletePayment],
+    [
+      records,
+      registry,
+      replaceFromFile,
+      addProject,
+      addClient,
+      addPayment,
+      updatePayment,
+      deletePayment,
+    ],
   );
 
   return (

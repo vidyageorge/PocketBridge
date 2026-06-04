@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
+import { confirmDeleteAll } from '@/lib/confirmDelete';
 import { exportTransactionsToExcel } from '@/lib/excel';
 import { filterTransactions } from '@/lib/filters';
 import { usePeriodFilter } from '@/context/PeriodFilterContext';
@@ -14,7 +15,7 @@ import { buildCashLedgerRows, summarizeCashLedger } from '@/lib/cashLedger';
 import { CashLedgerSummaryCards } from '@/components/transactions/CashLedgerSummaryCards';
 import { CashLedgerTable } from '@/components/transactions/CashLedgerTable';
 import { TransactionTable } from '@/components/transactions/TransactionTable';
-import type { TransactionSource } from '@/types/transaction';
+import type { Transaction, TransactionSource } from '@/types/transaction';
 
 type AccountTabProps = {
   source: TransactionSource;
@@ -25,11 +26,13 @@ export function AccountTab({ source }: AccountTabProps) {
   const {
     transactions,
     addTransaction,
+    updateTransaction,
     deleteTransaction,
     clearTransactionsBySource,
     importCashFromClientPayments,
   } = useTransactions();
   const { month, year, setMonth, setYear } = usePeriodFilter();
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   const accountTransactions = useMemo(
     () => transactions.filter((transaction) => transaction.source === source),
@@ -53,16 +56,36 @@ export function AccountTab({ source }: AccountTabProps) {
 
   const label = source === 'bank' ? 'Bank Account' : 'Cash Account';
 
+  const handleEditTransaction = (id: number) => {
+    const record = transactions.find((transaction) => transaction.id === id);
+    if (record) {
+      setEditingTransaction(record);
+    }
+  };
+
+  const handleDeleteTransaction = (id: number) => {
+    deleteTransaction(id);
+    if (editingTransaction?.id === id) {
+      setEditingTransaction(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {source === 'bank' && <BankStatementImport />}
 
+      {(source === 'cash' || editingTransaction) && (
+        <TransactionForm
+          source={source}
+          editingTransaction={editingTransaction}
+          onSubmit={(transaction) => addTransaction(transaction, source)}
+          onUpdate={updateTransaction}
+          onCancelEdit={() => setEditingTransaction(null)}
+        />
+      )}
+
       {source === 'cash' && (
         <>
-          <TransactionForm
-            source={source}
-            onSubmit={(transaction) => addTransaction(transaction, source)}
-          />
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
@@ -96,14 +119,16 @@ export function AccountTab({ source }: AccountTabProps) {
           onYearChange={setYear}
         />
         <div className="flex flex-wrap gap-2">
-          {accountTransactions.length > 0 && (
+          {source === 'cash' && accountTransactions.length > 0 && (
             <Button
               variant="outline"
               onClick={() => {
-                const confirmed = window.confirm(
-                  `Delete all ${accountTransactions.length} ${label.toLowerCase()} entries? This cannot be undone.`,
-                );
-                if (confirmed) {
+                if (
+                  confirmDeleteAll(
+                    accountTransactions.length,
+                    `${label.toLowerCase()} entries`,
+                  )
+                ) {
                   clearTransactionsBySource(source);
                 }
               }}
@@ -130,13 +155,13 @@ export function AccountTab({ source }: AccountTabProps) {
       {source === 'cash' ? (
         <CashLedgerTable
           rows={cashLedgerRows}
-          onDelete={deleteTransaction}
+          onEdit={handleEditTransaction}
+          onDelete={handleDeleteTransaction}
           title={`Petty cash ledger (${cashLedgerRows.length} entries)`}
         />
       ) : (
         <TransactionTable
           transactions={filtered}
-          onDelete={deleteTransaction}
           showSource={false}
           variant="statement"
           title={`Bank Statement (${filtered.length} entries)`}

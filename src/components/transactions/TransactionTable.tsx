@@ -1,12 +1,16 @@
-import { Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
+import { useTablePagination } from '@/hooks/useTablePagination';
+import { confirmDeleteEntry } from '@/lib/confirmDelete';
 import { formatCurrency } from '@/lib/currency';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { TablePagination } from '@/components/ui/TablePagination';
 import type { Transaction } from '@/types/transaction';
 
 type TransactionTableProps = {
   transactions: Transaction[];
+  onEdit?: (transaction: Transaction) => void;
   onDelete?: (id: number) => void;
   showSource?: boolean;
   variant?: 'simple' | 'statement';
@@ -23,6 +27,7 @@ function formatStatementAmount(value: number | undefined): string {
 
 export function TransactionTable({
   transactions,
+  onEdit,
   onDelete,
   showSource = true,
   variant = 'simple',
@@ -30,6 +35,10 @@ export function TransactionTable({
   title = 'Transactions',
 }: TransactionTableProps) {
   const isStatement = variant === 'statement';
+  const { paginatedItems, page, setPage, totalPages, totalItems, pageSize } =
+    useTablePagination(transactions);
+  const visibleTransactions = isStatement ? paginatedItems : transactions;
+  const showActions = Boolean(onEdit || onDelete);
 
   return (
     <Card>
@@ -86,11 +95,11 @@ export function TransactionTable({
                   {showSource && <th className="px-2 py-3 font-medium">Source</th>}
                   {!isStatement && <th className="px-2 py-3 font-medium">Type</th>}
                   {!isStatement && <th className="px-2 py-3 font-medium text-right">Amount</th>}
-                  {onDelete && <th className="px-2 py-3 font-medium text-right">Actions</th>}
+                  {showActions && <th className="px-2 py-3 font-medium text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((transaction) => {
+                {visibleTransactions.map((transaction) => {
                   const withdrawal =
                     transaction.withdrawal ??
                     (transaction.type === 'expense' ? transaction.amount : undefined);
@@ -163,16 +172,35 @@ export function TransactionTable({
                           </td>
                         </>
                       )}
-                      {onDelete && (
+                      {showActions && (
                         <td className="px-2 py-3 text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onDelete(transaction.id)}
-                            aria-label={`Delete ${transaction.desc}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            {onEdit && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onEdit(transaction)}
+                                aria-label={`Edit ${transaction.desc}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {onDelete && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const summary = `${transaction.date} — ${transaction.desc}`;
+                                  if (confirmDeleteEntry(summary)) {
+                                    onDelete(transaction.id);
+                                  }
+                                }}
+                                aria-label={`Delete ${transaction.desc}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -181,6 +209,15 @@ export function TransactionTable({
               </tbody>
             </table>
           </div>
+        )}
+        {isStatement && transactions.length > 0 && (
+          <TablePagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
         )}
       </CardContent>
     </Card>

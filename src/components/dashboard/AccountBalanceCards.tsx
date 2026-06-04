@@ -1,10 +1,6 @@
 import { useContext, useMemo } from 'react';
 import { formatCurrency, formatIndianAmountUnit } from '@/lib/currency';
-import {
-  formatAsOnLabel,
-  getBankBalanceAsOn,
-  getCashBalanceAsOn,
-} from '@/lib/accountBalance';
+import { getBankBalanceAsOn, getCashBalanceAsOn } from '@/lib/accountBalance';
 import { DashboardPeriodContext } from '@/context/DashboardPeriodContext';
 import { usePeriodFilter } from '@/context/PeriodFilterContext';
 import { useTransactions } from '@/context/TransactionContext';
@@ -19,7 +15,7 @@ type AccountBalanceCardsProps = {
 };
 
 /**
- * Shows bank and cash balances as on the statement or latest entry in the period.
+ * Shows bank and cash balances for the selected period.
  */
 export function AccountBalanceCards({
   title = 'Money on hand',
@@ -48,9 +44,6 @@ export function AccountBalanceCards({
   const hasAnyBalance =
     (showBank && bankBalance !== null) || (showCash && cashBalance !== null);
 
-  const bankAsOnLabel = bankBalance ? formatAsOnLabel(bankBalance.asOnDate) : '';
-  const cashAsOnLabel = cashBalance ? formatAsOnLabel(cashBalance.asOnDate) : '';
-
   return (
     <Card className="border-border/80 bg-white/95">
       <CardHeader className="pb-2">
@@ -71,9 +64,7 @@ export function AccountBalanceCards({
           >
             {showBank && (
               <DashboardAnswerCard
-                label={
-                  bankBalance ? `Bank (as on ${bankAsOnLabel})` : 'Bank'
-                }
+                label="Bank"
                 answer={bankBalance ? formatCurrency(bankBalance.balance) : '—'}
                 unitLabel={
                   bankBalance ? formatIndianAmountUnit(bankBalance.balance) : undefined
@@ -83,7 +74,7 @@ export function AccountBalanceCards({
             )}
             {showCash && (
               <DashboardAnswerCard
-                label={cashBalance ? `Cash (through ${cashAsOnLabel})` : 'Cash'}
+                label="Cash"
                 answer={cashBalance ? formatCurrency(cashBalance.balance) : '—'}
                 unitLabel={
                   cashBalance ? formatIndianAmountUnit(cashBalance.balance) : undefined
@@ -102,11 +93,6 @@ export function AccountBalanceCards({
               />
             )}
           </div>
-        )}
-        {bankBalance?.origin === 'statement' && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Bank figure uses the imported statement closing balance.
-          </p>
         )}
       </CardContent>
     </Card>

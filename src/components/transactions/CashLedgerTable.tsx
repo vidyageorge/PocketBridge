@@ -1,4 +1,5 @@
-import { Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
+import { confirmDeleteEntry } from '@/lib/confirmDelete';
 import { formatCurrency } from '@/lib/currency';
 import type { CashLedgerRow } from '@/lib/cashLedger';
 import { Button } from '@/components/ui/button';
@@ -6,15 +7,29 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type CashLedgerTableProps = {
   rows: CashLedgerRow[];
+  onEdit?: (id: number) => void;
   onDelete?: (id: number) => void;
   title?: string;
 };
 
+function handleDeleteRow(row: CashLedgerRow, onDelete: (id: number) => void): void {
+  const amountLabel = row.type === 'income' ? 'Cash in' : 'Cash out';
+  const amountValue = row.type === 'income' ? row.moneyIn : row.moneyOut;
+  const summary = `${row.date} — ${row.desc}\n${amountLabel}: ${amountValue}`;
+
+  if (confirmDeleteEntry(summary)) {
+    onDelete(row.id);
+  }
+}
+
 export function CashLedgerTable({
   rows,
+  onEdit,
   onDelete,
   title = 'Petty cash ledger',
 }: CashLedgerTableProps) {
+  const showActions = Boolean(onEdit || onDelete);
+
   return (
     <Card>
       <CardHeader>
@@ -27,7 +42,18 @@ export function CashLedgerTable({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] text-left text-sm">
+            <table className="w-full min-w-[72rem] border-collapse text-left text-sm">
+              <colgroup>
+                <col className="w-[6.5rem]" />
+                <col className="w-[11rem]" />
+                <col />
+                <col className="w-[8.5rem]" />
+                <col className="w-[9rem]" />
+                <col className="w-[8.5rem]" />
+                <col className="w-[8.5rem]" />
+                <col className="w-[9.5rem]" />
+                {showActions && <col className="w-[5.5rem]" />}
+              </colgroup>
               <thead>
                 <tr className="border-b border-border bg-muted font-semibold text-muted-foreground">
                   <th className="px-2 py-3 font-medium">Date</th>
@@ -35,10 +61,14 @@ export function CashLedgerTable({
                   <th className="px-2 py-3 font-medium">Description</th>
                   <th className="px-2 py-3 font-medium">Category</th>
                   <th className="px-2 py-3 font-medium">Spent by</th>
-                  <th className="px-2 py-3 font-medium text-right">Cash in</th>
-                  <th className="px-2 py-3 font-medium text-right">Cash out</th>
-                  <th className="px-2 py-3 font-medium text-right">Balance</th>
-                  {onDelete && <th className="px-2 py-3 font-medium text-right">Actions</th>}
+                  <th className="px-2 py-3 text-right font-medium">Cash in</th>
+                  <th className="px-2 py-3 text-right font-medium">Cash out</th>
+                  <th className="px-2 py-3 text-right font-medium">Balance</th>
+                  {showActions && (
+                    <th className="px-2 py-3 text-center font-medium">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -48,8 +78,8 @@ export function CashLedgerTable({
                     <td className="px-2 py-3 whitespace-nowrap">
                       {row.type === 'income' ? row.clientName ?? '—' : '—'}
                     </td>
-                    <td className="px-2 py-3 max-w-[14rem]">
-                      <span className="block truncate" title={row.desc}>
+                    <td className="px-2 py-3">
+                      <span className="block max-w-[18rem] truncate" title={row.desc}>
                         {row.desc}
                       </span>
                     </td>
@@ -70,16 +100,32 @@ export function CashLedgerTable({
                     >
                       {formatCurrency(row.runningBalance)}
                     </td>
-                    {onDelete && (
-                      <td className="px-2 py-3 text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onDelete(row.id)}
-                          aria-label={`Delete ${row.desc}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                    {showActions && (
+                      <td className="px-2 py-3 text-center">
+                        <div className="flex justify-center gap-1">
+                          {onEdit && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 shrink-0 px-0"
+                              onClick={() => onEdit(row.id)}
+                              aria-label={`Edit ${row.desc}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {onDelete && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 shrink-0 px-0"
+                              onClick={() => handleDeleteRow(row, onDelete)}
+                              aria-label={`Delete ${row.desc}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>

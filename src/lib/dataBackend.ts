@@ -119,7 +119,9 @@ export async function initDataBackend(): Promise<DataBackendMode> {
   }
 
   cache.clear();
-  await Promise.all(Object.values(STORE_KEYS).map((key) => loadKeyIntoCache(key)));
+  await Promise.all(
+    Object.values(STORE_KEYS).map((key) => loadKeyIntoCache(key as StoreKey)),
+  );
   initialized = true;
   return mode;
 }

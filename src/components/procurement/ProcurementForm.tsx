@@ -1,16 +1,12 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { PROCUREMENT_PAYMENT_STATUSES } from '@/lib/constants';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { getSupplierList } from '@/lib/procurement';
+import { useCustomOptions } from '@/context/CustomOptionsContext';
+import { useProcurement } from '@/context/ProcurementContext';
 import { Button } from '@/components/ui/button';
+import { CreatableSelect } from '@/components/ui/CreatableSelect';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import type { ProcurementRecord, ProcurementRecordInput } from '@/types/procurement';
 
 type ProcurementFormProps = {
@@ -63,6 +59,15 @@ export function ProcurementForm({
   onUpdate,
   onCancelEdit,
 }: ProcurementFormProps) {
+  const { records, supplierRegistry, addSupplier } = useProcurement();
+  const { getOptions, addOption } = useCustomOptions();
+  const paymentStatuses = getOptions('procurementPaymentStatuses');
+  const paymentModes = getOptions('paymentModes');
+  const supplierNames = useMemo(
+    () => getSupplierList(records, supplierRegistry).map((entry) => entry.supplierName),
+    [records, supplierRegistry],
+  );
+
   const isEditing = editingRecord !== null;
   const [form, setForm] = useState<ProcurementRecordInput>(() =>
     createEmptyInput(sheetMonth, sheetYear),
@@ -165,13 +170,16 @@ export function ProcurementForm({
 
           <div>
             <Label htmlFor="procurement-supplier">Supplier</Label>
-            <Input
+            <CreatableSelect
               id="procurement-supplier"
-              value={form.supplier}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, supplier: event.target.value }))
+              value={form.supplier || supplierNames[0] || ''}
+              onValueChange={(value) =>
+                setForm((current) => ({ ...current, supplier: value }))
               }
-              placeholder="Supplier name"
+              options={supplierNames.length > 0 ? supplierNames : ['—']}
+              onAddOption={(label) => addSupplier(label)}
+              placeholder="Select supplier"
+              addLabel="Add new supplier"
             />
           </div>
 
@@ -239,23 +247,16 @@ export function ProcurementForm({
 
           <div>
             <Label htmlFor="procurement-payment-status">Payment Status</Label>
-            <Select
+            <CreatableSelect
+              id="procurement-payment-status"
               value={form.paymentStatus}
               onValueChange={(value) =>
                 setForm((current) => ({ ...current, paymentStatus: value }))
               }
-            >
-              <SelectTrigger id="procurement-payment-status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PROCUREMENT_PAYMENT_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={paymentStatuses}
+              onAddOption={(label) => addOption('procurementPaymentStatuses', label)}
+              addLabel="Add new status"
+            />
           </div>
 
           <div>
@@ -272,13 +273,16 @@ export function ProcurementForm({
 
           <div>
             <Label htmlFor="procurement-payment-mode">Payment Mode</Label>
-            <Input
+            <CreatableSelect
               id="procurement-payment-mode"
-              value={form.paymentMode}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, paymentMode: event.target.value }))
+              value={form.paymentMode || paymentModes[0] || ''}
+              onValueChange={(value) =>
+                setForm((current) => ({ ...current, paymentMode: value }))
               }
-              placeholder="Cash, UPI, Cheque..."
+              options={paymentModes}
+              onAddOption={(label) => addOption('paymentModes', label)}
+              placeholder="Select mode"
+              addLabel="Add new mode"
             />
           </div>
 

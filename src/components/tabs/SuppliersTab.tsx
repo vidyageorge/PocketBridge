@@ -11,6 +11,7 @@ import {
   sortProcurementByOrderDateDesc,
 } from '@/lib/procurement';
 import { useProcurement } from '@/context/ProcurementContext';
+import { ProcurementForm } from '@/components/procurement/ProcurementForm';
 import { ProcurementImport } from '@/components/procurement/ProcurementImport';
 import { ProcurementMetricCards } from '@/components/procurement/ProcurementMetricCards';
 import { ProcurementMonthFilter as ProcurementMonthFilterControl } from '@/components/procurement/ProcurementMonthFilter';
@@ -21,13 +22,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   EMPTY_PROCUREMENT_FILTERS,
   type ProcurementColumnFilters,
+  type ProcurementRecord,
 } from '@/types/procurement';
 
 /**
  * Supplier-focused view of material procurement and payments.
  */
 export function SuppliersTab() {
-  const { records, supplierRegistry, deleteRecord } = useProcurement();
+  const { records, supplierRegistry, addRecord, updateRecord, deleteRecord } = useProcurement();
   const defaultPeriod = useMemo(() => getLatestProcurementPeriod(records), [records]);
 
   const [month, setMonth] = useState(defaultPeriod.month);
@@ -37,6 +39,7 @@ export function SuppliersTab() {
   );
   const [columnFilters, setColumnFilters] =
     useState<ProcurementColumnFilters>(EMPTY_PROCUREMENT_FILTERS);
+  const [editingRecord, setEditingRecord] = useState<ProcurementRecord | null>(null);
 
   const filteredByPeriod = useMemo(
     () => filterProcurementRecords(records, month, year),
@@ -85,12 +88,10 @@ export function SuppliersTab() {
   };
 
   const handleDelete = (id: number) => {
-    const record = records.find((entry) => entry.id === id);
-    const label = record?.description ?? 'this order';
-    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) {
-      return;
-    }
     deleteRecord(id);
+    if (editingRecord?.id === id) {
+      setEditingRecord(null);
+    }
   };
 
   return (
@@ -112,6 +113,15 @@ export function SuppliersTab() {
           setSelectedSupplier(supplier);
           setColumnFilters(EMPTY_PROCUREMENT_FILTERS);
         }}
+      />
+
+      <ProcurementForm
+        sheetMonth={month}
+        sheetYear={year}
+        editingRecord={editingRecord}
+        onAdd={addRecord}
+        onUpdate={updateRecord}
+        onCancelEdit={() => setEditingRecord(null)}
       />
 
       <SupplierListButtons
@@ -169,6 +179,7 @@ export function SuppliersTab() {
         filters={columnFilters}
         onFilterChange={handleFilterChange}
         onClearFilters={() => setColumnFilters(EMPTY_PROCUREMENT_FILTERS)}
+        onEdit={setEditingRecord}
         onDelete={handleDelete}
         title={`${selectedSupplier} — orders`}
       />

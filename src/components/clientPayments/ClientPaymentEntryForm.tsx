@@ -1,26 +1,24 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
+  applyClientPaymentUpdate,
   getClientProjectList,
   getProjectsForClient,
   normalizeSheetProjectLabel,
 } from '@/lib/clientPayment';
 import { useClientPayments } from '@/context/ClientPaymentContext';
+import { CreatableSelect } from '@/components/ui/CreatableSelect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import type { ClientPaymentRecord } from '@/types/clientPayment';
 
 type ClientPaymentEntryFormProps = {
   sheetProject?: string;
   clientName?: string;
   showSplitAmounts: boolean;
+  editingRecord?: ClientPaymentRecord | null;
+  onCancelEdit?: () => void;
 };
 
 /**
@@ -30,8 +28,11 @@ export function ClientPaymentEntryForm({
   sheetProject,
   clientName,
   showSplitAmounts,
+  editingRecord = null,
+  onCancelEdit,
 }: ClientPaymentEntryFormProps) {
-  const { records, registry, addPayment } = useClientPayments();
+  const { records, registry, addPayment, updatePayment, addProject } = useClientPayments();
+  const isEditing = editingRecord !== null;
   const projectOptions = useMemo(() => {
     if (clientName) {
       const forClient = getProjectsForClient(records, registry, clientName);
@@ -39,6 +40,11 @@ export function ClientPaymentEntryForm({
     }
     return getClientProjectList(records, registry);
   }, [records, registry, clientName]);
+
+  const projectLabels = useMemo(
+    () => projectOptions.map((project) => project.sheetProject),
+    [projectOptions],
+  );
 
   const defaultProject =
     sheetProject ??
@@ -62,6 +68,28 @@ export function ClientPaymentEntryForm({
       setSelectedProject(sheetProject);
     }
   }, [sheetProject]);
+
+  useEffect(() => {
+    if (!editingRecord) {
+      return;
+    }
+
+    setSelectedProject(editingRecord.sheetProject);
+    setPaymentDate(editingRecord.paymentDate);
+    setDescription(editingRecord.description === '—' ? '' : editingRecord.description);
+    setInvoiceNumber(editingRecord.invoiceNumber);
+    if (showSplitAmounts) {
+      setBanking(editingRecord.banking > 0 ? String(editingRecord.banking) : '');
+      setCash(editingRecord.cash > 0 ? String(editingRecord.cash) : '');
+      setGpay(editingRecord.gpay > 0 ? String(editingRecord.gpay) : '');
+      setAmount('');
+    } else {
+      setAmount(editingRecord.amount > 0 ? String(editingRecord.amount) : '');
+      setBanking('');
+      setCash('');
+      setGpay('');
+    }
+  }, [editingRecord, showSplitAmounts]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -94,18 +122,28 @@ export function ClientPaymentEntryForm({
       return;
     }
 
-    const saved = addPayment(
-      {
-        sheetProject: activeProject,
-        paymentDate,
-        description: description.trim(),
-        banking: parsedBanking,
-        cash: parsedCash,
-        gpay: parsedGpay,
-        invoiceNumber,
-      },
-      showSplitAmounts,
-    );
+    const input = {
+      sheetProject: activeProject,
+      paymentDate,
+      description: description.trim(),
+      banking: parsedBanking,
+      cash: parsedCash,
+      gpay: parsedGpay,
+      invoiceNumber,
+    };
+
+    if (isEditing && editingRecord) {
+      const updated = applyClientPaymentUpdate(editingRecord, input, showSplitAmounts);
+      if (!updated) {
+        window.alert('Could not save payment. Check the fields and try again.');
+        return;
+      }
+      updatePayment(updated);
+      onCancelEdit?.();
+      return;
+    }
+
+    const saved = addPayment(input, showSplitAmounts);
 
     if (!saved) {
       window.alert('Could not add payment. Check that the project exists.');
@@ -127,7 +165,9 @@ export function ClientPaymentEntryForm({
   return (
     <Card className="border-border/80 bg-white/95">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Add payment received</CardTitle>
+        <CardTitle className="text-base">
+          {isEditing ? 'Edit payment' : 'Add payment received'}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <form
@@ -137,18 +177,23 @@ export function ClientPaymentEntryForm({
           {!lockedProject && (
             <div className="space-y-2">
               <Label htmlFor="payment-project">Project</Label>
-              <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger id="payment-project">
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projectOptions.map((project) => (
-                    <SelectItem key={project.sheetProject} value={project.sheetProject}>
-                      {project.sheetProject}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CreatableSelect
+                id="payment-project"
+                value={selectedProject}
+                onValueChange={setSelectedProject}
+                options={projectLabels}
+                onAddOption={(label) => {
+                  const sheetProject = normalizeSheetProjectLabel(label);
+                  return addProject({
+                    sheetProject,
+                    projectCode: sheetProject,
+                    projectName: sheetProject,
+                    clientName: clientName ?? 'New client',
+                  });
+                }}
+                placeholder="Select project"
+                addLabel="Add new project"
+              />
             </div>
           )}
 
@@ -234,10 +279,15 @@ export function ClientPaymentEntryForm({
             />
           </div>
 
-          <div className="flex items-end">
+          <div className="flex flex-wrap items-end gap-2">
             <Button type="submit" className="w-full sm:w-auto">
-              Add payment
+              {isEditing ? 'Save changes' : 'Add payment'}
             </Button>
+            {isEditing && onCancelEdit && (
+              <Button type="button" variant="outline" onClick={onCancelEdit}>
+                Cancel
+              </Button>
+            )}
           </div>
         </form>
       </CardContent>

@@ -353,6 +353,34 @@ export function resolveClientPaymentAmounts(
   return { banking: amount, cash: 0, gpay: 0, amount };
 }
 
+/**
+ * Applies form input to an existing client payment row (preserves id and serial).
+ */
+export function applyClientPaymentUpdate(
+  existing: ClientPaymentRecord,
+  input: ClientPaymentInput,
+  useSplitAmounts: boolean,
+): ClientPaymentRecord | null {
+  const amounts = resolveClientPaymentAmounts(input, useSplitAmounts);
+  const trimmedDescription = input.description.trim();
+
+  if (!input.paymentDate || (!trimmedDescription && amounts.amount === 0)) {
+    return null;
+  }
+
+  return {
+    ...existing,
+    paymentDate: input.paymentDate,
+    description: trimmedDescription || '—',
+    banking: amounts.banking,
+    cash: amounts.cash,
+    gpay: amounts.gpay,
+    amount: amounts.amount,
+    invoiceNumber: input.invoiceNumber?.trim() ?? '',
+    comment: input.comment?.trim() ?? existing.comment,
+  };
+}
+
 export function buildClientPaymentRecord(
   records: ClientPaymentRecord[],
   registry: ClientPaymentRegistry,

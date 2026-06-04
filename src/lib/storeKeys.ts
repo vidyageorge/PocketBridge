@@ -8,6 +8,7 @@ export const STORE_KEYS = {
   PROCUREMENT: 'pocketbridge_procurement',
   SUPPLIER_REGISTRY: 'pocketbridge_supplier_registry',
   EXPENSES: 'pocketbridge_expenses',
+  CUSTOM_OPTIONS: 'pocketbridge_custom_options',
 } as const;
 
 export type StoreKey = (typeof STORE_KEYS)[keyof typeof STORE_KEYS];

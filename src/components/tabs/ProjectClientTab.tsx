@@ -28,6 +28,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   EMPTY_CLIENT_PAYMENT_FILTERS,
   type ClientPaymentColumnFilters,
+  type ClientPaymentRecord,
 } from '@/types/clientPayment';
 
 export type ProjectClientSection = 'projects' | 'clients';
@@ -39,6 +40,7 @@ type ProjectClientTabProps = {
 
 export function ProjectClientTab({ activeSection, onSectionChange }: ProjectClientTabProps) {
   const { records, registry, deletePayment } = useClientPayments();
+  const [editingPayment, setEditingPayment] = useState<ClientPaymentRecord | null>(null);
   const defaultProject = useMemo(
     () => getDefaultClientProject(records, registry),
     [records, registry],
@@ -121,6 +123,13 @@ export function ProjectClientTab({ activeSection, onSectionChange }: ProjectClie
 
   const resetFilters = () => setColumnFilters(EMPTY_CLIENT_PAYMENT_FILTERS);
 
+  const handleDeletePayment = (id: number) => {
+    deletePayment(id);
+    if (editingPayment?.id === id) {
+      setEditingPayment(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">Projects &amp; Client</h2>
@@ -155,7 +164,12 @@ export function ProjectClientTab({ activeSection, onSectionChange }: ProjectClie
 
           {projectMeta && <ClientPaymentProjectInfo project={projectMeta} />}
 
-          <ClientPaymentEntryForm sheetProject={sheetProject} showSplitAmounts={showSplitAmounts} />
+          <ClientPaymentEntryForm
+            sheetProject={sheetProject}
+            showSplitAmounts={showSplitAmounts}
+            editingRecord={editingPayment}
+            onCancelEdit={() => setEditingPayment(null)}
+          />
 
           <ClientPaymentMetricCards summary={projectSummary} />
 
@@ -167,7 +181,8 @@ export function ProjectClientTab({ activeSection, onSectionChange }: ProjectClie
             onClearFilters={resetFilters}
             title={`${sheetProject} — payments received`}
             showSplitAmounts={showSplitAmounts}
-            onDelete={deletePayment}
+            onEdit={setEditingPayment}
+            onDelete={handleDeletePayment}
           />
         </TabsContent>
 
@@ -217,6 +232,8 @@ export function ProjectClientTab({ activeSection, onSectionChange }: ProjectClie
           <ClientPaymentEntryForm
             clientName={selectedClient}
             showSplitAmounts={sheetUsesSplitAmounts(clientRecords)}
+            editingRecord={editingPayment}
+            onCancelEdit={() => setEditingPayment(null)}
           />
 
           <ClientPaymentMetricCards summary={clientSummary} />
@@ -230,7 +247,8 @@ export function ProjectClientTab({ activeSection, onSectionChange }: ProjectClie
             title={`${selectedClient} — all project payments`}
             showSplitAmounts={sheetUsesSplitAmounts(clientRecords)}
             showProjectColumn
-            onDelete={deletePayment}
+            onEdit={setEditingPayment}
+            onDelete={handleDeletePayment}
           />
         </TabsContent>
       </Tabs>

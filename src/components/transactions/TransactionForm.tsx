@@ -1,9 +1,10 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { getClientList } from '@/lib/clientPayment';
-import { CATEGORIES, EXPENSE_CATEGORIES } from '@/lib/constants';
 import { useClientPayments } from '@/context/ClientPaymentContext';
+import { useCustomOptions } from '@/context/CustomOptionsContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CreatableSelect } from '@/components/ui/CreatableSelect';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -13,21 +14,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { TransactionSource, TransactionType } from '@/types/transaction';
+import type { Transaction, TransactionSource, TransactionType } from '@/types/transaction';
 
 type CashEntryKind = 'payment' | 'expense';
 
+type TransactionPayload = {
+  date: string;
+  desc: string;
+  clientName?: string;
+  spentBy?: string;
+  cat: string;
+  type: TransactionType;
+  amount: number;
+};
+
 type TransactionFormProps = {
   source: TransactionSource;
-  onSubmit: (transaction: {
-    date: string;
-    desc: string;
-    clientName?: string;
-    spentBy?: string;
-    cat: string;
-    type: TransactionType;
-    amount: number;
-  }) => void;
+  editingTransaction?: Transaction | null;
+  onSubmit: (transaction: TransactionPayload) => void;
+  onUpdate?: (transaction: Transaction) => void;
+  onCancelEdit?: () => void;
 };
 
 const emptyCashForm = {
@@ -48,11 +54,98 @@ const emptyBankForm = {
   amount: '',
 };
 
-export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
-  const { records, registry } = useClientPayments();
+function transactionToCashForm(transaction: Transaction) {
+  const isPayment = transaction.type === 'income';
+  return {
+    date: transaction.date,
+    entryKind: isPayment ? ('payment' as CashEntryKind) : ('expense' as CashEntryKind),
+    clientName: transaction.clientName ?? '',
+    spentBy: transaction.spentBy ?? '',
+    desc: transaction.desc,
+    cat: transaction.cat,
+    amount: String(transaction.amount),
+  };
+}
+
+function transactionToBankForm(transaction: Transaction) {
+  return {
+    date: transaction.date,
+    desc: transaction.desc,
+    cat: transaction.cat,
+    type: transaction.type,
+    amount: String(transaction.amount),
+  };
+}
+
+function resetCashForm(clientNames: string[]) {
+  return {
+    ...emptyCashForm,
+    date: new Date().toISOString().slice(0, 10),
+    clientName: clientNames[0] ?? '',
+  };
+}
+
+export function TransactionForm({
+  source,
+  editingTransaction = null,
+  onSubmit,
+  onUpdate,
+  onCancelEdit,
+}: TransactionFormProps) {
+  const { records, registry, addClient } = useClientPayments();
+  const { getOptions, addOption } = useCustomOptions();
   const clients = useMemo(() => getClientList(records, registry), [records, registry]);
+  const clientNames = useMemo(
+    () => clients.map((client) => client.clientName),
+    [clients],
+  );
+  const expenseCategories = getOptions('expenseCategories');
+  const bankCategories = getOptions('bankCategories');
+
+  const isEditing = editingTransaction !== null;
+  const activeSource = editingTransaction?.source ?? source;
+
   const [cashForm, setCashForm] = useState(emptyCashForm);
   const [bankForm, setBankForm] = useState(emptyBankForm);
+
+  useEffect(() => {
+    if (editingTransaction) {
+      if (editingTransaction.source === 'cash') {
+        setCashForm(transactionToCashForm(editingTransaction));
+      } else {
+        setBankForm(transactionToBankForm(editingTransaction));
+      }
+      return;
+    }
+
+    if (source === 'cash') {
+      setCashForm(resetCashForm(clientNames));
+    } else {
+      setBankForm({ ...emptyBankForm, date: new Date().toISOString().slice(0, 10) });
+    }
+  }, [editingTransaction, source, clientNames]);
+
+  const applyCashPayload = (payload: TransactionPayload) => {
+    if (editingTransaction && onUpdate) {
+      onUpdate({ ...editingTransaction, ...payload });
+      onCancelEdit?.();
+      return;
+    }
+
+    onSubmit(payload);
+    setCashForm(resetCashForm(clientNames));
+  };
+
+  const applyBankPayload = (payload: TransactionPayload) => {
+    if (editingTransaction && onUpdate) {
+      onUpdate({ ...editingTransaction, ...payload });
+      onCancelEdit?.();
+      return;
+    }
+
+    onSubmit(payload);
+    setBankForm({ ...emptyBankForm, date: new Date().toISOString().slice(0, 10) });
+  };
 
   const handleCashSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -77,7 +170,7 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
       return;
     }
 
-    onSubmit({
+    applyCashPayload({
       date: cashForm.date,
       desc: description,
       clientName: isPayment ? clientName : undefined,
@@ -85,12 +178,6 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
       cat: isPayment ? 'Client Payment' : cashForm.cat,
       type: isPayment ? 'income' : 'expense',
       amount,
-    });
-
-    setCashForm({
-      ...emptyCashForm,
-      date: new Date().toISOString().slice(0, 10),
-      clientName: clients[0]?.clientName ?? '',
     });
   };
 
@@ -102,25 +189,22 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
       return;
     }
 
-    onSubmit({
+    applyBankPayload({
       date: bankForm.date,
       desc: bankForm.desc.trim(),
       cat: bankForm.cat,
       type: bankForm.type,
       amount,
     });
-
-    setBankForm({ ...emptyBankForm, date: new Date().toISOString().slice(0, 10) });
   };
 
-  if (source === 'cash') {
+  if (activeSource === 'cash') {
     const isPayment = cashForm.entryKind === 'payment';
-    const expenseCategories = EXPENSE_CATEGORIES as readonly string[];
 
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Add Cash Transaction</CardTitle>
+          <CardTitle>{isEditing ? 'Edit cash entry' : 'Add Cash Transaction'}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleCashSubmit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -148,7 +232,7 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
                     cat: value === 'payment' ? 'Client Payment' : current.cat,
                     clientName:
                       value === 'payment' && !current.clientName
-                        ? (clients[0]?.clientName ?? '')
+                        ? (clientNames[0] ?? '')
                         : current.clientName,
                   }))
                 }
@@ -166,24 +250,18 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
             {isPayment && (
               <div>
                 <Label htmlFor="cash-client">Client</Label>
-                {clients.length > 0 ? (
-                  <Select
-                    value={cashForm.clientName || clients[0]?.clientName}
+                {clientNames.length > 0 ? (
+                  <CreatableSelect
+                    id="cash-client"
+                    value={cashForm.clientName || clientNames[0]}
                     onValueChange={(value) =>
                       setCashForm((current) => ({ ...current, clientName: value }))
                     }
-                  >
-                    <SelectTrigger id="cash-client">
-                      <SelectValue placeholder="Select client" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.map((client) => (
-                        <SelectItem key={client.clientName} value={client.clientName}>
-                          {client.clientName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={clientNames}
+                    onAddOption={(label) => addClient(label)}
+                    placeholder="Select client"
+                    addLabel="Add new client"
+                  />
                 ) : (
                   <Input
                     id="cash-client"
@@ -230,23 +308,16 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
             {!isPayment && (
               <div>
                 <Label htmlFor="cash-cat">Category</Label>
-                <Select
+                <CreatableSelect
+                  id="cash-cat"
                   value={cashForm.cat}
                   onValueChange={(value) =>
                     setCashForm((current) => ({ ...current, cat: value }))
                   }
-                >
-                  <SelectTrigger id="cash-cat">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {expenseCategories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={expenseCategories}
+                  onAddOption={(label) => addOption('expenseCategories', label)}
+                  addLabel="Add new category"
+                />
               </div>
             )}
 
@@ -266,10 +337,15 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
               />
             </div>
 
-            <div className="flex items-end sm:col-span-2 lg:col-span-3">
+            <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-3">
               <Button type="submit" className="w-full sm:w-auto">
-                Add Transaction
+                {isEditing ? 'Save changes' : 'Add Transaction'}
               </Button>
+              {isEditing && onCancelEdit && (
+                <Button type="button" variant="outline" onClick={onCancelEdit}>
+                  Cancel
+                </Button>
+              )}
             </div>
           </form>
         </CardContent>
@@ -280,14 +356,14 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Add Bank Transaction</CardTitle>
+        <CardTitle>{isEditing ? 'Edit bank entry' : 'Add Bank Transaction'}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleBankSubmit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <Label htmlFor={`${source}-date`}>Date</Label>
+            <Label htmlFor={`${activeSource}-date`}>Date</Label>
             <Input
-              id={`${source}-date`}
+              id={`${activeSource}-date`}
               type="date"
               value={bankForm.date}
               onChange={(event) =>
@@ -298,9 +374,9 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
           </div>
 
           <div className="sm:col-span-2 lg:col-span-1">
-            <Label htmlFor={`${source}-desc`}>Description</Label>
+            <Label htmlFor={`${activeSource}-desc`}>Description</Label>
             <Input
-              id={`${source}-desc`}
+              id={`${activeSource}-desc`}
               value={bankForm.desc}
               onChange={(event) =>
                 setBankForm((current) => ({ ...current, desc: event.target.value }))
@@ -311,33 +387,26 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
           </div>
 
           <div>
-            <Label htmlFor={`${source}-cat`}>Category</Label>
-            <Select
+            <Label htmlFor={`${activeSource}-cat`}>Category</Label>
+            <CreatableSelect
+              id={`${activeSource}-cat`}
               value={bankForm.cat}
               onValueChange={(value) => setBankForm((current) => ({ ...current, cat: value }))}
-            >
-              <SelectTrigger id={`${source}-cat`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={bankCategories}
+              onAddOption={(label) => addOption('bankCategories', label)}
+              addLabel="Add new category"
+            />
           </div>
 
           <div>
-            <Label htmlFor={`${source}-type`}>Type</Label>
+            <Label htmlFor={`${activeSource}-type`}>Type</Label>
             <Select
               value={bankForm.type}
               onValueChange={(value) =>
                 setBankForm((current) => ({ ...current, type: value as TransactionType }))
               }
             >
-              <SelectTrigger id={`${source}-type`}>
+              <SelectTrigger id={`${activeSource}-type`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -348,9 +417,9 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
           </div>
 
           <div>
-            <Label htmlFor={`${source}-amount`}>Amount (₹)</Label>
+            <Label htmlFor={`${activeSource}-amount`}>Amount (₹)</Label>
             <Input
-              id={`${source}-amount`}
+              id={`${activeSource}-amount`}
               type="number"
               min="1"
               step="1"
@@ -363,10 +432,15 @@ export function TransactionForm({ source, onSubmit }: TransactionFormProps) {
             />
           </div>
 
-          <div className="flex items-end sm:col-span-2 lg:col-span-3">
+          <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-3">
             <Button type="submit" className="w-full sm:w-auto">
-              Add Transaction
+              {isEditing ? 'Save changes' : 'Add Transaction'}
             </Button>
+            {isEditing && onCancelEdit && (
+              <Button type="button" variant="outline" onClick={onCancelEdit}>
+                Cancel
+              </Button>
+            )}
           </div>
         </form>
       </CardContent>

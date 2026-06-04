@@ -38,10 +38,6 @@ export function CashLedgerSummaryCards({ summary }: CashLedgerSummaryCardsProps)
             />
           </div>
         )}
-        <p className="mt-3 text-xs text-muted-foreground">
-          Record client cash with Payment (from client). Record site spends with Expense and Spent
-          by. Client payment history from the workbook is under Projects &amp; Client.
-        </p>
       </CardContent>
     </Card>
   );
