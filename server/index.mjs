@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import express from 'express';
 import {
@@ -71,6 +74,14 @@ app.post('/api/migrate', async (request, response) => {
     response.status(500).json({ error: String(error) });
   }
 });
+
+const distDirectory = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+if (existsSync(path.join(distDirectory, 'index.html'))) {
+  app.use(express.static(distDirectory));
+  app.get(/^(?!\/api).*/, (_request, response) => {
+    response.sendFile(path.join(distDirectory, 'index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`PocketBridge API listening on http://localhost:${PORT}`);

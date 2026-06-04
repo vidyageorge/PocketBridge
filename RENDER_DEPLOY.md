@@ -39,13 +39,11 @@ Link the database under **Connections** or paste the URL manually.
 1. **Manual Deploy** → Deploy latest commit (must include the `server/` folder on GitHub).
 2. Open `https://YOUR-SERVICE.onrender.com/api/health` — expect `"ok": true`.
 
-## Frontend (separate)
+## Frontend (UI)
 
-Deploy the UI as a **Static Site**, not this Web Service:
+`Cannot GET /` on the API URL is normal — the UI is not deployed yet.
 
-| Setting | Value |
-|---------|--------|
-| Root Directory | *(repo root)* |
-| Build Command | `npm install && npm run build` |
-| Publish directory | `dist` |
-| `VITE_API_URL` | `https://YOUR-API.onrender.com` |
+**Step-by-step:** [DEPLOY_UI_ON_RENDER.md](./DEPLOY_UI_ON_RENDER.md)
+
+Quick version — add a **Static Site** with `Publish directory` = `dist` and  
+`VITE_API_URL` = `https://YOUR-API.onrender.com`.

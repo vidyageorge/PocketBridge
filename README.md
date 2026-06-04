@@ -22,7 +22,8 @@ PocketBridge is a personal finance tracker that combines your bank (online/UPI) 
 
 ## Getting Started
 
-**Full local guide (run app + populate data):** [LOCAL_SETUP.md](./LOCAL_SETUP.md)
+**Full local guide (run app + populate data):** [LOCAL_SETUP.md](./LOCAL_SETUP.md)  
+**Publish UI on Render:** [DEPLOY_UI_ON_RENDER.md](./DEPLOY_UI_ON_RENDER.md)
 
 Quick start:
 
