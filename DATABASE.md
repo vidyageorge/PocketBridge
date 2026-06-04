@@ -105,6 +105,52 @@ You should see:
 
 (`empty: false` after you have used the app.)
 
+## Push localStorage (or SQLite) to Neon
+
+Neon only receives data when the **API** writes to it. Set Render’s `DATABASE_URL` to your **Neon connection string** (Neon dashboard → Connect), then use one of these:
+
+### Option A — From the browser (easiest)
+
+1. On your machine, create `.env.local` in the project root:
+   ```env
+   VITE_API_URL=https://pocketbridge.onrender.com
+   ```
+2. Run `npm run dev` and open http://localhost:5173 (same browser where your data already lives).
+3. On first load, if the DB is empty, data copies automatically.
+4. Or click **Upload browser data to database** in the top banner (after the API connects).
+5. Check health again — `"empty": false`. In Neon → **Tables** → `app_store`, you should see rows.
+
+### Option B — Export JSON + API
+
+1. On the tab that has your data, open DevTools → Console.
+2. Paste and run `scripts/browser-export-localStorage.js` (or copy its contents).
+3. Save the clipboard as `pocketbridge-export.json` in the project root.
+4. Run:
+   ```bash
+   node server/scripts/push-store.mjs --api https://pocketbridge.onrender.com --file pocketbridge-export.json
+   ```
+
+### Option C — Direct to Neon (no Render in the middle)
+
+1. Copy Neon’s connection string.
+2. In PowerShell:
+   ```powershell
+   $env:DATABASE_URL="postgresql://..."
+   npm run push:store
+   ```
+   Uses `server/data/pocketbridge.db` if you have been saving locally with the API.
+
+   Or from the JSON export:
+   ```bash
+   node server/scripts/push-store.mjs --file pocketbridge-export.json
+   ```
+
+In Neon SQL Editor:
+
+```sql
+SELECT key, updated_at FROM app_store;
+```
+
 ## Production (summary)
 
 | Piece | Render type |

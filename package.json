@@ -13,7 +13,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "seed:procurement": "node scripts/generate-procurement-seed.mjs",
-    "seed:client-payments": "node scripts/generate-client-payment-seed.mjs"
+    "seed:client-payments": "node scripts/generate-client-payment-seed.mjs",
+    "push:store": "node server/scripts/push-store.mjs"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.8",

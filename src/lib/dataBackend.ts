@@ -57,7 +57,8 @@ async function detectApiBackend(): Promise<boolean> {
   }
 }
 
-async function migrateLocalStorageToApi(): Promise<void> {
+/** Builds a payload from all PocketBridge keys currently in browser localStorage. */
+export function buildLocalStoragePayload(): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
 
   Object.values(STORE_KEYS).forEach((key) => {
@@ -67,8 +68,20 @@ async function migrateLocalStorageToApi(): Promise<void> {
     }
   });
 
-  if (Object.keys(payload).length === 0) {
-    return;
+  return payload;
+}
+
+/** POSTs localStorage data to the configured API (Neon/Postgres behind the API). */
+export async function pushLocalStorageToApi(): Promise<string[]> {
+  if (!API_BASE) {
+    throw new Error('VITE_API_URL is not set. Point the app at your API first.');
+  }
+
+  const payload = buildLocalStoragePayload();
+  const keys = Object.keys(payload);
+
+  if (keys.length === 0) {
+    throw new Error('No PocketBridge data found in this browser localStorage.');
   }
 
   const response = await fetch(`${API_BASE}/api/migrate`, {
@@ -80,6 +93,16 @@ async function migrateLocalStorageToApi(): Promise<void> {
   if (!response.ok) {
     throw new Error(`Migration failed: ${response.status}`);
   }
+
+  return keys;
+}
+
+async function migrateLocalStorageToApi(): Promise<void> {
+  const keys = Object.keys(buildLocalStoragePayload());
+  if (keys.length === 0) {
+    return;
+  }
+  await pushLocalStorageToApi();
 }
 
 async function loadKeyIntoCache(key: StoreKey): Promise<void> {
