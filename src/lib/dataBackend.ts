@@ -105,6 +105,81 @@ async function migrateLocalStorageToApi(): Promise<void> {
   await pushLocalStorageToApi();
 }
 
+function localValueHasData(key: StoreKey, value: unknown): boolean {
+  if (value === null) {
+    return false;
+  }
+
+  if (key === STORE_KEYS.EXPENSES && typeof value === 'object') {
+    const expenseData = value as { project?: unknown[]; employee?: unknown[] };
+    return (
+      (expenseData.project?.length ?? 0) > 0 || (expenseData.employee?.length ?? 0) > 0
+    );
+  }
+
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+
+  if (typeof value === 'object') {
+    return Object.keys(value as object).length > 0;
+  }
+
+  return true;
+}
+
+function cloudValueIsEmpty(key: StoreKey, value: unknown | null): boolean {
+  if (value === null) {
+    return true;
+  }
+
+  if (key === STORE_KEYS.EXPENSES && typeof value === 'object') {
+    const expenseData = value as { project?: unknown[]; employee?: unknown[] };
+    return (
+      (expenseData.project?.length ?? 0) === 0 && (expenseData.employee?.length ?? 0) === 0
+    );
+  }
+
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+
+  return false;
+}
+
+/** Uploads browser keys that have data when the cloud copy is missing or empty. */
+async function syncLocalKeysMissingOnCloud(): Promise<void> {
+  const payload: Record<string, unknown> = {};
+
+  for (const key of Object.values(STORE_KEYS)) {
+    const local = readLocalStorage(key);
+    if (!localValueHasData(key as StoreKey, local)) {
+      continue;
+    }
+
+    const remote = await fetchFromApi(key);
+    if (!cloudValueIsEmpty(key as StoreKey, remote)) {
+      continue;
+    }
+
+    payload[key] = local;
+  }
+
+  if (Object.keys(payload).length === 0) {
+    return;
+  }
+
+  const response = await fetch(`${API_BASE}/api/migrate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Sync failed: ${response.status}`);
+  }
+}
+
 async function loadKeyIntoCache(key: StoreKey): Promise<void> {
   if (mode === 'api') {
     const value = await fetchFromApi(key);
@@ -138,6 +213,8 @@ export async function initDataBackend(): Promise<DataBackendMode> {
 
     if (health.empty) {
       await migrateLocalStorageToApi();
+    } else {
+      await syncLocalKeysMissingOnCloud();
     }
   }
 

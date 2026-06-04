@@ -76,20 +76,24 @@ export function DataBackendProvider({ children }: DataBackendProviderProps) {
     <>
       {mode === 'api' && (
         <div className="border-b border-border bg-nav-navy/5 px-4 py-2 text-center text-xs text-muted-foreground">
-          Saving to cloud database via API
-          <span className="mt-1 block">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-1 h-7 text-xs"
-              disabled={pushing}
-              onClick={() => void handlePushLocalToCloud()}
-            >
-              {pushing ? 'Uploading…' : 'Upload browser data to database'}
-            </Button>
-            {pushMessage && <span className="mt-1 block text-expense">{pushMessage}</span>}
-          </span>
+          {import.meta.env.VITE_API_URL
+            ? 'Saving to cloud database via API'
+            : 'Saving to local database (SQLite on this computer)'}
+          {import.meta.env.VITE_API_URL && (
+            <span className="mt-1 block">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-1 h-7 text-xs"
+                disabled={pushing}
+                onClick={() => void handlePushLocalToCloud()}
+              >
+                {pushing ? 'Uploading…' : 'Upload browser data to database'}
+              </Button>
+              {pushMessage && <span className="mt-1 block text-expense">{pushMessage}</span>}
+            </span>
+          )}
         </div>
       )}
       {children}
