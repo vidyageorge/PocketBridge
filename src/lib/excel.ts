@@ -18,6 +18,8 @@ export function exportTransactionsToExcel(
     'Tran Date': transaction.date,
     'Value Date': transaction.valueDate ?? transaction.date,
     Particulars: transaction.desc,
+    Client: transaction.clientName ?? '',
+    'Spent by': transaction.spentBy ?? '',
     Location: transaction.location ?? '',
     'Chq.No': transaction.chqNo ?? '',
     Withdrawals:

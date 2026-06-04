@@ -19,9 +19,8 @@ type PeriodFilterContextValue = {
 const PeriodFilterContext = createContext<PeriodFilterContextValue | null>(null);
 
 export function PeriodFilterProvider({ children }: { children: ReactNode }) {
-  const currentYear = new Date().getFullYear();
   const [month, setMonth] = useState<MonthFilter>('all');
-  const [year, setYear] = useState<YearFilter>(currentYear);
+  const [year, setYear] = useState<YearFilter>('all');
 
   const setPeriod = useCallback((period: { month: number; year: number }) => {
     setMonth(period.month);

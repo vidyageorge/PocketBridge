@@ -1,123 +1,175 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { Trash2 } from 'lucide-react';
 import { MONTHS } from '@/lib/constants';
 import { formatCurrency } from '@/lib/currency';
 import {
+  aggregateProjectMonthlySummary,
   computeExpenseSummary,
   filterByPeriod,
-  filterProjectByCode,
-  getProjectCodes,
 } from '@/lib/expense';
-import { getDisplaySerialNumber } from '@/lib/tablePagination';
-import { useTablePagination } from '@/hooks/useTablePagination';
 import { useExpenses } from '@/context/ExpenseContext';
-import { TablePagination } from '@/components/ui/TablePagination';
+import { ProjectExpenseForm } from '@/components/expenses/ProjectExpenseForm';
 import { ExpenseMetricCards } from '@/components/expenses/ExpenseMetricCards';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 type ProjectExpensePanelProps = {
   month: number;
   year: number;
 };
 
+/**
+ * Monthly project spend summary with add and remove entries.
+ */
 export function ProjectExpensePanel({ month, year }: ProjectExpensePanelProps) {
-  const { data } = useExpenses();
-  const [projectCode, setProjectCode] = useState<string>('all');
+  const { data, deleteProjectExpense } = useExpenses();
 
-  const filteredByPeriod = useMemo(
-    () => filterByPeriod(data.project, month, year),
-    [data.project, month, year],
+  const filteredByPeriod = useMemo(() => {
+    const records = filterByPeriod(data.project, month, year);
+    return [...records].sort((left, right) => {
+      const leftDate = left.paymentDate || '';
+      const rightDate = right.paymentDate || '';
+      return rightDate.localeCompare(leftDate);
+    });
+  }, [data.project, month, year]);
+
+  const projectSummaries = useMemo(
+    () => aggregateProjectMonthlySummary(filteredByPeriod),
+    [filteredByPeriod],
   );
 
-  const displayedRecords = useMemo(
-    () => filterProjectByCode(filteredByPeriod, projectCode),
-    [filteredByPeriod, projectCode],
+  const summary = useMemo(() => computeExpenseSummary(filteredByPeriod), [filteredByPeriod]);
+
+  const totals = useMemo(
+    () =>
+      projectSummaries.reduce(
+        (accumulator, row) => ({
+          totalSpent: accumulator.totalSpent + row.totalSpent,
+          totalIncome: accumulator.totalIncome + row.totalIncome,
+        }),
+        { totalSpent: 0, totalIncome: 0 },
+      ),
+    [projectSummaries],
   );
 
-  const projectCodes = useMemo(() => getProjectCodes(filteredByPeriod), [filteredByPeriod]);
-  const { paginatedItems, page, setPage, totalPages, totalItems, pageSize } =
-    useTablePagination(displayedRecords);
-  const summary = useMemo(() => computeExpenseSummary(displayedRecords), [displayedRecords]);
   const monthLabel = MONTHS.find((monthOption) => monthOption.value === month)?.label ?? month;
 
   return (
     <div className="space-y-6">
-      <div className="w-full sm:w-56">
-        <Label htmlFor="project-expense-filter">Project</Label>
-        <Select value={projectCode} onValueChange={setProjectCode}>
-          <SelectTrigger id="project-expense-filter">
-            <SelectValue placeholder="All projects" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All projects</SelectItem>
-            {projectCodes.map((code) => (
-              <SelectItem key={code} value={code}>
-                {code}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <ProjectExpenseForm month={month} year={year} />
 
       <ExpenseMetricCards summary={summary} />
 
       <Card>
         <CardHeader>
           <CardTitle>
-            {monthLabel} {year} — {displayedRecords.length} project expense lines
+            {monthLabel} {year} — spend by project
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {displayedRecords.length === 0 ? (
+          {projectSummaries.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No project expenses for this month and filter.
+              No project expenses for this month. Add an entry above.
             </p>
           ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted font-semibold text-muted-foreground">
+                    <th className="px-2 py-3 font-medium">S.No</th>
+                    <th className="px-2 py-3 font-medium">Project</th>
+                    <th className="px-2 py-3 font-medium text-right">Spent</th>
+                    <th className="px-2 py-3 font-medium text-right">Income</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projectSummaries.map((row, index) => (
+                    <tr key={row.projectCode} className="border-b border-border/60">
+                      <td className="px-2 py-3 text-muted-foreground">{index + 1}</td>
+                      <td className="px-2 py-3 font-medium">{row.projectCode}</td>
+                      <td className="px-2 py-3 text-right text-expense">
+                        {formatCurrency(row.totalSpent)}
+                      </td>
+                      <td className="px-2 py-3 text-right text-income">
+                        {row.totalIncome > 0 ? formatCurrency(row.totalIncome) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-border bg-muted/40 font-semibold">
+                    <td className="px-2 py-3" colSpan={2}>
+                      Total
+                    </td>
+                    <td className="px-2 py-3 text-right text-expense">
+                      {formatCurrency(totals.totalSpent)}
+                    </td>
+                    <td className="px-2 py-3 text-right text-income">
+                      {totals.totalIncome > 0 ? formatCurrency(totals.totalIncome) : '—'}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {filteredByPeriod.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Entries this month</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted font-semibold text-muted-foreground">
-                    <th className="px-2 py-3 font-medium">S.No</th>
-                    <th className="px-2 py-3 font-medium">Description</th>
+                    <th className="px-2 py-3 font-medium">Date</th>
                     <th className="px-2 py-3 font-medium">Project</th>
+                    <th className="px-2 py-3 font-medium">Type</th>
                     <th className="px-2 py-3 font-medium text-right">Amount</th>
+                    <th className="px-2 py-3 font-medium text-right">Remove</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedItems.map((record, rowIndex) => (
+                  {filteredByPeriod.map((record) => (
                     <tr key={record.id} className="border-b border-border/60">
-                      <td className="px-2 py-3">
-                        {getDisplaySerialNumber(rowIndex, page, pageSize)}
+                      <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
+                        {record.paymentDate || '—'}
                       </td>
-                      <td className="px-2 py-3">{record.description}</td>
                       <td className="px-2 py-3 font-medium">{record.projectCode}</td>
-                      <td className="px-2 py-3 text-right font-medium text-expense">
+                      <td className="px-2 py-3">{record.description}</td>
+                      <td className="px-2 py-3 text-right text-expense">
                         {formatCurrency(record.amount)}
+                      </td>
+                      <td className="px-2 py-3 text-right">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Remove ${record.description} for ${record.projectCode}?`,
+                              )
+                            ) {
+                              deleteProjectExpense(record.id);
+                            }
+                          }}
+                          aria-label={`Remove entry for ${record.projectCode}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
-          {displayedRecords.length > 0 && (
-            <TablePagination
-              page={page}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              pageSize={pageSize}
-              onPageChange={setPage}
-            />
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

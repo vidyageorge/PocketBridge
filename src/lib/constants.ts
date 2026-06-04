@@ -1,4 +1,6 @@
-export const STORAGE_KEY = 'pocketbridge_txs';
+import { STORE_KEYS } from '@/lib/storeKeys';
+
+export const STORAGE_KEY = STORE_KEYS.TRANSACTIONS;
 
 export const COMPANY_NAME = 'Sixty Cubits Pvt Ltd';
 export const COMPANY_LOCATION = 'Chennai, Tamil Nadu';
@@ -33,6 +35,26 @@ export const CATEGORIES = [...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES] as const
 
 export const PROCUREMENT_PAYMENT_STATUSES = ['Completed', 'Pending', 'Partial'] as const;
 
+/** Matches workbook description labels for employee expense lines. */
+export const EMPLOYEE_EXPENSE_CATEGORIES = [
+  'Material Expanse',
+  'labor Contract Payment - Civil',
+  'labor Contract Payment - Electrical',
+  'Salary',
+  'bonus-insentive',
+  'Fuel',
+  'Food',
+  'Electricity',
+  'Telephone / Internet',
+  'Rent & Maintenace',
+  'Marketing',
+  "Personal Advance's",
+  'CAR EMI',
+  'Maintenance-jawa',
+  'Car Insuranace',
+  'Others',
+] as const;
+
 export const MONTHS = [
   { value: 1, label: 'January' },
   { value: 2, label: 'February' },
@@ -48,45 +70,5 @@ export const MONTHS = [
   { value: 12, label: 'December' },
 ] as const;
 
-export const SEED_TRANSACTIONS = [
-  {
-    date: '2026-05-28',
-    desc: 'Client payment - Site A',
-    cat: 'Client Payment',
-    type: 'income' as const,
-    amount: 35000,
-    source: 'bank' as const,
-  },
-  {
-    date: '2026-05-29',
-    desc: 'Electricity bill',
-    cat: 'Materials',
-    type: 'expense' as const,
-    amount: 1200,
-    source: 'bank' as const,
-  },
-  {
-    date: '2026-05-30',
-    desc: 'Site labour wages',
-    cat: 'Labour',
-    type: 'expense' as const,
-    amount: 450,
-    source: 'cash' as const,
-  },
-  {
-    date: '2026-05-31',
-    desc: 'Auto rickshaw',
-    cat: 'Transport',
-    type: 'expense' as const,
-    amount: 80,
-    source: 'cash' as const,
-  },
-  {
-    date: '2026-06-01',
-    desc: 'Online grocery',
-    cat: 'Materials',
-    type: 'expense' as const,
-    amount: 1800,
-    source: 'bank' as const,
-  },
-];
+/** Demo bank/cash lines removed — use ICICI import and the cash ledger form instead. */
+export const SEED_TRANSACTIONS = [] as const;

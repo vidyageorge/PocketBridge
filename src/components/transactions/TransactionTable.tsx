@@ -10,6 +10,7 @@ type TransactionTableProps = {
   onDelete?: (id: number) => void;
   showSource?: boolean;
   variant?: 'simple' | 'statement';
+  showClientColumn?: boolean;
   title?: string;
 };
 
@@ -25,6 +26,7 @@ export function TransactionTable({
   onDelete,
   showSource = true,
   variant = 'simple',
+  showClientColumn = false,
   title = 'Transactions',
 }: TransactionTableProps) {
   const isStatement = variant === 'statement';
@@ -43,19 +45,36 @@ export function TransactionTable({
           <div className="overflow-x-auto">
             <table
               className={`w-full text-left text-sm ${
-                isStatement ? 'min-w-[900px]' : 'min-w-[640px]'
+                isStatement ? 'min-w-[900px] table-fixed' : 'min-w-[640px]'
               }`}
             >
+              {isStatement && (
+                <colgroup>
+                  <col className="w-[5.5rem]" />
+                  <col className="w-[5.5rem]" />
+                  <col />
+                  <col className="w-[6.5rem]" />
+                  <col className="w-[6.5rem]" />
+                  <col className="w-[7.5rem]" />
+                  {showSource && <col className="w-[4.5rem]" />}
+                </colgroup>
+              )}
               <thead>
                 <tr className="border-b border-border bg-muted font-semibold text-muted-foreground">
                   {isStatement ? (
                     <>
-                      <th className="px-2 py-3 font-medium">Tran Date</th>
-                      <th className="px-2 py-3 font-medium">Value Date</th>
+                      <th className="px-2 py-3 font-medium whitespace-nowrap">Tran Date</th>
+                      <th className="px-2 py-3 font-medium whitespace-nowrap">Value Date</th>
                       <th className="px-2 py-3 font-medium">Particulars</th>
-                      <th className="px-2 py-3 font-medium text-right">Withdrawals</th>
-                      <th className="px-2 py-3 font-medium text-right">Deposits</th>
-                      <th className="px-2 py-3 font-medium text-right">Balance (INR)</th>
+                      <th className="px-2 py-3 font-medium text-right whitespace-nowrap">
+                        Withdrawals
+                      </th>
+                      <th className="px-2 py-3 font-medium text-right whitespace-nowrap">
+                        Deposits
+                      </th>
+                      <th className="px-2 py-3 font-medium text-right whitespace-nowrap">
+                        Balance (INR)
+                      </th>
                     </>
                   ) : (
                     <>
@@ -87,14 +106,18 @@ export function TransactionTable({
                           <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
                             {transaction.valueDate ?? transaction.date}
                           </td>
-                          <td className="px-2 py-3 max-w-xs">{transaction.desc}</td>
-                          <td className="px-2 py-3 text-right text-expense">
+                          <td className="px-2 py-3 max-w-0 overflow-hidden">
+                            <span className="block truncate" title={transaction.desc}>
+                              {transaction.desc}
+                            </span>
+                          </td>
+                          <td className="px-2 py-3 text-right whitespace-nowrap text-expense">
                             {formatStatementAmount(withdrawal)}
                           </td>
-                          <td className="px-2 py-3 text-right text-income">
+                          <td className="px-2 py-3 text-right whitespace-nowrap text-income">
                             {formatStatementAmount(deposit)}
                           </td>
-                          <td className="px-2 py-3 text-right font-medium">
+                          <td className="px-2 py-3 text-right whitespace-nowrap font-medium">
                             {transaction.balance !== undefined
                               ? formatCurrency(transaction.balance)
                               : '—'}
@@ -103,7 +126,16 @@ export function TransactionTable({
                       ) : (
                         <>
                           <td className="px-2 py-3 whitespace-nowrap">{transaction.date}</td>
-                          <td className="px-2 py-3">{transaction.desc}</td>
+                          <td className="px-2 py-3 max-w-[16rem] overflow-hidden">
+                            <span className="block truncate" title={transaction.desc}>
+                              {transaction.desc}
+                            </span>
+                          </td>
+                          {showClientColumn && (
+                            <td className="px-2 py-3 whitespace-nowrap">
+                              {transaction.clientName ?? '—'}
+                            </td>
+                          )}
                           <td className="px-2 py-3">{transaction.cat}</td>
                         </>
                       )}

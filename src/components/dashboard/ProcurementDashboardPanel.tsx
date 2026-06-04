@@ -4,29 +4,57 @@ import {
   aggregateAmountByLabel,
   filterBySheetPeriod,
   getProcurementPaymentStatusBreakdown,
+  getTopSpendingArea,
 } from '@/lib/dashboardAggregates';
 import { computeProcurementSummary, sortProcurementByOrderDateDesc } from '@/lib/procurement';
 import { useProcurement } from '@/context/ProcurementContext';
-import { usePeriodFilter } from '@/context/PeriodFilterContext';
+import { useExpenses } from '@/context/ExpenseContext';
+import { useTransactions } from '@/context/TransactionContext';
+import { useDashboardPeriod } from '@/context/DashboardPeriodContext';
+import { DashboardAnswerCard } from '@/components/dashboard/DashboardAnswerCard';
 import { DashboardBarChart } from '@/components/dashboard/DashboardBarChart';
-import { DashboardMetricGrid } from '@/components/dashboard/DashboardMetricGrid';
 import { DashboardRankedList } from '@/components/dashboard/DashboardRankedList';
 import { BRAND_COLORS } from '@/lib/constants';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 /**
- * Procurement spend, suppliers, and payment status for the selected period.
+ * Where purchase money goes: suppliers, projects, and pending bills.
  */
 export function ProcurementDashboardPanel() {
   const { records } = useProcurement();
-  const { month, year } = usePeriodFilter();
+  const { transactions } = useTransactions();
+  const { data: expenses } = useExpenses();
+  const { month, year } = useDashboardPeriod();
 
   const filtered = useMemo(
     () => filterBySheetPeriod(records, month, year),
     [records, month, year],
   );
 
+  const filteredProjectExpenses = useMemo(
+    () => filterBySheetPeriod(expenses.project, month, year),
+    [expenses.project, month, year],
+  );
+
+  const filteredEmployeeExpenses = useMemo(
+    () => filterBySheetPeriod(expenses.employee, month, year),
+    [expenses.employee, month, year],
+  );
+
   const summary = useMemo(() => computeProcurementSummary(filtered), [filtered]);
+
+  const topSpending = useMemo(
+    () =>
+      getTopSpendingArea(
+        transactions,
+        filtered,
+        filteredProjectExpenses,
+        filteredEmployeeExpenses,
+        month,
+        year,
+      ),
+    [transactions, filtered, filteredProjectExpenses, filteredEmployeeExpenses, month, year],
+  );
 
   const bySupplier = useMemo(
     () =>
@@ -51,16 +79,48 @@ export function ProcurementDashboardPanel() {
     [filtered],
   );
 
-  const metrics = [
-    { label: 'Orders', value: String(summary.orderCount), tone: 'text-foreground' },
-    { label: 'Total spend', value: formatCurrency(summary.totalAmount), tone: 'text-foreground' },
-    { label: 'Paid (completed)', value: formatCurrency(summary.paidAmount), tone: 'text-income' },
-    { label: 'Pending', value: formatCurrency(summary.pendingAmount), tone: 'text-expense' },
-  ];
+  const topSupplier = bySupplier[0];
 
   return (
     <div className="space-y-6">
-      <DashboardMetricGrid metrics={metrics} columns={4} />
+      <Card className="border-border/80 bg-white/95">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Purchases</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <DashboardAnswerCard label="Orders" answer={String(summary.orderCount)} />
+            <DashboardAnswerCard
+              label="Total spent"
+              answer={formatCurrency(summary.totalAmount)}
+              tone="text-expense"
+            />
+            <DashboardAnswerCard
+              label="Paid"
+              answer={formatCurrency(summary.paidAmount)}
+              tone="text-income"
+            />
+            <DashboardAnswerCard
+              label="Pending"
+              answer={formatCurrency(summary.pendingAmount)}
+              tone="text-expense"
+            />
+          </div>
+          {topSupplier && (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Biggest supplier this period:{' '}
+              <span className="font-medium text-foreground">{topSupplier.label}</span> (
+              {formatCurrency(topSupplier.amount)})
+            </p>
+          )}
+          {topSpending && topSpending.source !== 'Purchases' && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Overall biggest spend: {topSpending.label} ({formatCurrency(topSpending.amount)}) —{' '}
+              {topSpending.source}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <DashboardBarChart
@@ -69,7 +129,7 @@ export function ProcurementDashboardPanel() {
           barColor={BRAND_COLORS.chartTeal}
         />
         <DashboardBarChart
-          title="Payment status"
+          title="Paid vs still pending"
           data={paymentStatus}
           barColor={BRAND_COLORS.chartGold}
         />
@@ -80,37 +140,31 @@ export function ProcurementDashboardPanel() {
         <DashboardRankedList title="Spend by project" rows={byProject} />
       </div>
 
-      <Card>
+      <Card className="border-border/80 bg-white/95">
         <CardHeader>
-          <CardTitle>Recent orders</CardTitle>
+          <CardTitle className="text-base">Latest purchases</CardTitle>
         </CardHeader>
         <CardContent>
           {recentOrders.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              No procurement orders for the selected period.
+              No purchases for this period.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground">
-                    <th className="px-2 py-2 font-medium">Description</th>
-                    <th className="px-2 py-2 font-medium">Supplier / status</th>
-                    <th className="px-2 py-2 font-medium text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.map((record) => (
-                    <tr key={record.id} className="border-b border-border/60">
-                      <td className="px-2 py-2 font-medium">{record.description}</td>
-                      <td className="px-2 py-2 text-muted-foreground">
-                        {record.supplier} · {record.paymentStatus}
-                      </td>
-                      <td className="px-2 py-2 text-right">{formatCurrency(record.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-3">
+              {recentOrders.map((record) => (
+                <div
+                  key={record.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2"
+                >
+                  <div>
+                    <p className="font-medium">{record.description}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {record.supplier} · {record.paymentStatus}
+                    </p>
+                  </div>
+                  <p className="font-semibold text-expense">{formatCurrency(record.amount)}</p>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

@@ -14,6 +14,7 @@ type MonthYearFilterProps = {
   month: MonthFilter;
   year: YearFilter;
   transactions: Transaction[];
+  years?: number[];
   onMonthChange: (month: MonthFilter) => void;
   onYearChange: (year: YearFilter) => void;
 };
@@ -22,10 +23,11 @@ export function MonthYearFilter({
   month,
   year,
   transactions,
+  years: yearsOverride,
   onMonthChange,
   onYearChange,
 }: MonthYearFilterProps) {
-  const years = getAvailableYears(transactions);
+  const years = yearsOverride ?? getAvailableYears(transactions);
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">

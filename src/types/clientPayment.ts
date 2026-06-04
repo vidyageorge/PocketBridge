@@ -55,3 +55,31 @@ export type ClientProjectMeta = {
   projectName: string;
   clientName: string;
 };
+
+export type ClientPaymentRegistry = {
+  projects: ClientProjectMeta[];
+  clientNames: string[];
+};
+
+export const EMPTY_CLIENT_PAYMENT_REGISTRY: ClientPaymentRegistry = {
+  projects: [],
+  clientNames: [],
+};
+
+export type AddClientProjectInput = {
+  sheetProject: string;
+  projectCode: string;
+  projectName: string;
+  clientName: string;
+};
+
+export type ClientPaymentInput = {
+  sheetProject: string;
+  paymentDate: string;
+  description: string;
+  banking: number;
+  cash: number;
+  gpay: number;
+  invoiceNumber?: string;
+  comment?: string;
+};

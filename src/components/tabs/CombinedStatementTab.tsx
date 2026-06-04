@@ -6,6 +6,7 @@ import { usePeriodFilter } from '@/context/PeriodFilterContext';
 import { useTransactions } from '@/context/TransactionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MonthYearFilter } from '@/components/filters/MonthYearFilter';
+import { AccountBalanceCards } from '@/components/dashboard/AccountBalanceCards';
 import { TransactionTable } from '@/components/transactions/TransactionTable';
 
 export function CombinedStatementTab() {
@@ -42,6 +43,8 @@ export function CombinedStatementTab() {
         onMonthChange={setMonth}
         onYearChange={setYear}
       />
+
+      <AccountBalanceCards />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

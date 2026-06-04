@@ -1,32 +1,21 @@
-export type DashboardView = 'financial' | 'projects' | 'clients' | 'procurement';
+export type DashboardView =
+  | 'financial'
+  | 'projects'
+  | 'clients'
+  | 'procurement'
+  | 'suppliers';
 
 export type DashboardViewOption = {
   id: DashboardView;
   label: string;
-  description: string;
 };
 
 export const DASHBOARD_VIEWS: DashboardViewOption[] = [
-  {
-    id: 'financial',
-    label: 'Bank & Cash',
-    description: 'Income, expenses, and bank vs cash split',
-  },
-  {
-    id: 'projects',
-    label: 'Projects',
-    description: 'Project costs, payroll, and client receipts',
-  },
-  {
-    id: 'clients',
-    label: 'Clients',
-    description: 'Payments by project and client',
-  },
-  {
-    id: 'procurement',
-    label: 'Procurement',
-    description: 'Orders, suppliers, and payment status',
-  },
+  { id: 'financial', label: 'Bank + Cash' },
+  { id: 'projects', label: 'Projects & team' },
+  { id: 'clients', label: 'Clients' },
+  { id: 'procurement', label: 'Spending' },
+  { id: 'suppliers', label: 'Suppliers' },
 ];
 
 export function getDashboardViewLabel(view: DashboardView): string {

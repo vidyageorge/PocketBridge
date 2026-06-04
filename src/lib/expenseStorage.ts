@@ -1,32 +1,47 @@
 import expenseSeed from '@/data/expense-seed.json';
-import type { ExpenseData } from '@/types/expense';
+import { getCachedStoreValue, setCachedStoreValue } from '@/lib/dataBackend';
+import { STORE_KEYS } from '@/lib/storeKeys';
+import type { EmployeeExpenseRecord, ExpenseData, ProjectExpenseRecord } from '@/types/expense';
 
-export const EXPENSE_STORAGE_KEY = 'pocketbridge_expenses';
+function normalizeEmployeeRecords(records: EmployeeExpenseRecord[]): EmployeeExpenseRecord[] {
+  return records.map((record) => ({
+    ...record,
+    paymentDate: record.paymentDate ?? '',
+  }));
+}
+
+function normalizeProjectRecords(records: ProjectExpenseRecord[]): ProjectExpenseRecord[] {
+  return records.map((record) => ({
+    ...record,
+    paymentDate: record.paymentDate ?? '',
+  }));
+}
+
+function normalizeExpenseData(data: ExpenseData): ExpenseData {
+  return {
+    project: normalizeProjectRecords(data.project ?? []),
+    employee: normalizeEmployeeRecords(data.employee ?? []),
+  };
+}
+
+export const EXPENSE_STORAGE_KEY = STORE_KEYS.EXPENSES;
 
 export function loadExpenseData(): ExpenseData {
-  try {
-    const stored = localStorage.getItem(EXPENSE_STORAGE_KEY);
-    if (!stored) {
-      return seedExpenseData();
-    }
+  const parsed = getCachedStoreValue<ExpenseData | null>(STORE_KEYS.EXPENSES, null);
 
-    const parsed = JSON.parse(stored) as ExpenseData;
-    if (!parsed.project?.length && !parsed.employee?.length) {
-      return seedExpenseData();
-    }
-
-    return parsed;
-  } catch {
+  if (!parsed || (!parsed.project?.length && !parsed.employee?.length)) {
     return seedExpenseData();
   }
+
+  return normalizeExpenseData(parsed);
 }
 
 export function saveExpenseData(data: ExpenseData): void {
-  localStorage.setItem(EXPENSE_STORAGE_KEY, JSON.stringify(data));
+  setCachedStoreValue(STORE_KEYS.EXPENSES, normalizeExpenseData(data));
 }
 
 export function seedExpenseData(): ExpenseData {
-  const seeded = expenseSeed as ExpenseData;
+  const seeded = normalizeExpenseData(expenseSeed as ExpenseData);
   saveExpenseData(seeded);
   return seeded;
 }

@@ -1,3 +1,5 @@
+import type { StatementBalanceSummary } from '@/types/accountBalance';
+
 export type TransactionType = 'income' | 'expense';
 export type TransactionSource = 'bank' | 'cash';
 
@@ -6,6 +8,8 @@ export type Transaction = {
   date: string;
   valueDate?: string;
   desc: string;
+  clientName?: string;
+  spentBy?: string;
   location?: string;
   chqNo?: string;
   mode?: string;
@@ -54,6 +58,7 @@ export type BankStatementEntry = {
 export type BankStatementPreview = {
   entries: BankStatementEntry[];
   skipped: { row: number; reason: string }[];
+  statementSummary?: StatementBalanceSummary;
   detectedColumns: {
     tranDate: string;
     valueDate: string;

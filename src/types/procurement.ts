@@ -60,3 +60,11 @@ export type ProcurementSummary = {
   completedCount: number;
   pendingCount: number;
 };
+
+export type SupplierRegistry = {
+  supplierNames: string[];
+};
+
+export const EMPTY_SUPPLIER_REGISTRY: SupplierRegistry = {
+  supplierNames: [],
+};

@@ -8,7 +8,7 @@ import {
   YAxis,
 } from 'recharts';
 import { BRAND_COLORS } from '@/lib/constants';
-import { formatCurrency } from '@/lib/currency';
+import { formatCurrency, formatIndianChartAxis } from '@/lib/currency';
 import type { DashboardBreakdownRow } from '@/lib/dashboardAggregates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -49,7 +49,7 @@ export function DashboardBarChart({
                   interval={0}
                   tick={{ fontSize: 12 }}
                 />
-                <YAxis tickFormatter={(value) => `₹${Number(value) / 1000}k`} />
+                <YAxis tickFormatter={(value) => formatIndianChartAxis(Number(value))} />
                 <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
                 <Bar dataKey="amount" fill={barColor} radius={[4, 4, 0, 0]} />
               </BarChart>

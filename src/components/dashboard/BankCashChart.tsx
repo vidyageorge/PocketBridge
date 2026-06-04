@@ -8,7 +8,7 @@ import {
   YAxis,
 } from 'recharts';
 import { BRAND_COLORS } from '@/lib/constants';
-import { formatCurrency } from '@/lib/currency';
+import { formatCurrency, formatIndianChartAxis } from '@/lib/currency';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type BankCashChartProps = {
@@ -27,7 +27,7 @@ export function BankCashChart({ data }: BankCashChartProps) {
             <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="source" />
-              <YAxis tickFormatter={(value) => `₹${value / 1000}k`} />
+              <YAxis tickFormatter={(value) => formatIndianChartAxis(Number(value))} />
               <Tooltip
                 formatter={(value, _name, item) => {
                   const net = (item?.payload as { net?: number })?.net ?? 0;

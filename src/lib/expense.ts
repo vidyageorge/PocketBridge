@@ -2,9 +2,11 @@ import * as XLSX from 'xlsx';
 import { parseAmount, parseDescription } from '@/lib/parseUtils';
 import type {
   EmployeeExpenseRecord,
+  EmployeeMonthlySummary,
   ExpenseData,
   ExpenseSummary,
   ProjectExpenseRecord,
+  ProjectMonthlySummary,
 } from '@/types/expense';
 
 const MONTH_NAME_TO_NUMBER: Record<string, number> = {
@@ -118,6 +120,7 @@ function parseSummarySheet(
         sno,
         description,
         projectCode: 'Company',
+        paymentDate: '',
         amount: companyExpense,
         income,
         cumulativeTotal,
@@ -138,6 +141,7 @@ function parseSummarySheet(
         sno,
         description,
         projectCode: projectColumn.code,
+        paymentDate: '',
         amount,
         income: 0,
         cumulativeTotal,
@@ -158,6 +162,7 @@ function parseSummarySheet(
         sno,
         description,
         employeeName: employeeColumn.name,
+        paymentDate: '',
         amount,
         cumulativeTotal,
       });
@@ -284,4 +289,139 @@ export function filterEmployeeByName(
     return records;
   }
   return records.filter((record) => record.employeeName === employeeName);
+}
+
+type EmployeeExpenseCategory = 'salary' | 'advance';
+
+/**
+ * Maps a workbook description to salary or advance; everything else counts toward total only.
+ */
+export function categorizeEmployeeExpense(description: string): EmployeeExpenseCategory | 'other' {
+  const normalized = description.toLowerCase();
+
+  if (normalized.includes('advance')) {
+    return 'advance';
+  }
+
+  if (
+    normalized.includes('salary') ||
+    normalized.includes('bonus') ||
+    normalized.includes('incentive') ||
+    normalized.includes('insentive')
+  ) {
+    return 'salary';
+  }
+
+  return 'other';
+}
+
+/**
+ * Builds one row per employee for a month with salary, advance, and total spent.
+ */
+export function aggregateEmployeeMonthlySummary(
+  records: EmployeeExpenseRecord[],
+): EmployeeMonthlySummary[] {
+  const byEmployee = new Map<string, EmployeeMonthlySummary>();
+
+  for (const record of records) {
+    const name = record.employeeName.trim() || 'Unknown';
+    const existing = byEmployee.get(name) ?? {
+      employeeName: name,
+      salary: 0,
+      advance: 0,
+      totalSpent: 0,
+    };
+
+    const category = categorizeEmployeeExpense(record.description);
+    if (category === 'salary') {
+      existing.salary += record.amount;
+    } else if (category === 'advance') {
+      existing.advance += record.amount;
+    }
+
+    existing.totalSpent += record.amount;
+    byEmployee.set(name, existing);
+  }
+
+  return [...byEmployee.values()].sort((left, right) =>
+    left.employeeName.localeCompare(right.employeeName),
+  );
+}
+
+const MONTH_SHORT_NAMES = [
+  'JAN',
+  'FEB',
+  'MAR',
+  'APR',
+  'MAY',
+  'JUNE',
+  'JULY',
+  'AUG',
+  'SEPT',
+  'OCT',
+  'NOV',
+  'DEC',
+] as const;
+
+/**
+ * Builds sheet label used in the expense workbook (e.g. JUNE-25).
+ */
+export function formatExpenseSheetName(month: number, year: number): string {
+  const monthLabel = MONTH_SHORT_NAMES[month - 1] ?? 'MON';
+  const yearSuffix = String(year).slice(-2);
+  return `${monthLabel}-${yearSuffix}`;
+}
+
+/**
+ * Default payment date for manual entry (today if same period, else first of month).
+ */
+export function defaultExpensePaymentDate(month: number, year: number): string {
+  const now = new Date();
+  if (now.getMonth() + 1 === month && now.getFullYear() === year) {
+    return now.toISOString().slice(0, 10);
+  }
+  return `${year}-${String(month).padStart(2, '0')}-01`;
+}
+
+export function getNextEmployeeExpenseId(records: EmployeeExpenseRecord[]): number {
+  if (records.length === 0) {
+    return 1;
+  }
+  return Math.max(...records.map((record) => record.id)) + 1;
+}
+
+export function getNextProjectExpenseId(records: ProjectExpenseRecord[]): number {
+  if (records.length === 0) {
+    return 1;
+  }
+  return Math.max(...records.map((record) => record.id)) + 1;
+}
+
+/** @deprecated Use defaultExpensePaymentDate */
+export const defaultEmployeePaymentDate = defaultExpensePaymentDate;
+
+/**
+ * Builds one row per project code for a month with spend and income totals.
+ */
+export function aggregateProjectMonthlySummary(
+  records: ProjectExpenseRecord[],
+): ProjectMonthlySummary[] {
+  const byProject = new Map<string, ProjectMonthlySummary>();
+
+  for (const record of records) {
+    const code = record.projectCode.trim() || 'Unassigned';
+    const existing = byProject.get(code) ?? {
+      projectCode: code,
+      totalSpent: 0,
+      totalIncome: 0,
+    };
+
+    existing.totalSpent += record.amount;
+    existing.totalIncome += record.income;
+    byProject.set(code, existing);
+  }
+
+  return [...byProject.values()].sort((left, right) =>
+    left.projectCode.localeCompare(right.projectCode),
+  );
 }

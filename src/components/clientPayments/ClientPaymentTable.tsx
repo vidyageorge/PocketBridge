@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Trash2 } from 'lucide-react';
 import { getDisplaySerialNumber } from '@/lib/tablePagination';
 import { useTablePagination } from '@/hooks/useTablePagination';
 import { TablePagination } from '@/components/ui/TablePagination';
@@ -26,6 +27,9 @@ type ClientPaymentTableProps = {
   onFilterChange: (field: keyof ClientPaymentColumnFilters, value: string) => void;
   onClearFilters: () => void;
   title?: string;
+  showSplitAmounts?: boolean;
+  showProjectColumn?: boolean;
+  onDelete?: (id: number) => void;
 };
 
 type FilterFieldConfig = {
@@ -35,13 +39,19 @@ type FilterFieldConfig = {
   align?: 'right';
 };
 
-const FILTER_FIELDS: FilterFieldConfig[] = [
+const BASE_FILTER_FIELDS: FilterFieldConfig[] = [
   { key: 'sno', type: 'select', placeholder: 'All' },
   { key: 'paymentDate', type: 'select', placeholder: 'All dates' },
   { key: 'description', type: 'select', placeholder: 'All descriptions' },
+];
+
+const SPLIT_AMOUNT_FILTER_FIELDS: FilterFieldConfig[] = [
   { key: 'banking', type: 'text', placeholder: 'Banking', align: 'right' },
   { key: 'cash', type: 'text', placeholder: 'Cash', align: 'right' },
   { key: 'gpay', type: 'text', placeholder: 'GPay', align: 'right' },
+];
+
+const TRAILING_FILTER_FIELDS: FilterFieldConfig[] = [
   { key: 'amount', type: 'text', placeholder: 'Amount', align: 'right' },
   { key: 'invoiceNumber', type: 'select', placeholder: 'All invoices' },
   { key: 'comment', type: 'select', placeholder: 'All comments' },
@@ -128,6 +138,10 @@ function ColumnFilterControl({
   );
 }
 
+function EmptyFilterCell() {
+  return <span className="inline-block h-8" aria-hidden />;
+}
+
 export function ClientPaymentTable({
   records,
   optionRecords,
@@ -135,21 +149,37 @@ export function ClientPaymentTable({
   onFilterChange,
   onClearFilters,
   title = 'Client payments',
+  showSplitAmounts = true,
+  showProjectColumn = false,
+  onDelete,
 }: ClientPaymentTableProps) {
   const hasActiveFilters = Object.values(filters).some((value) => value.trim().length > 0);
+
+  const filterFields = useMemo(() => {
+    const amountFields = showSplitAmounts ? SPLIT_AMOUNT_FILTER_FIELDS : [];
+    return [...BASE_FILTER_FIELDS, ...amountFields, ...TRAILING_FILTER_FIELDS];
+  }, [showSplitAmounts]);
 
   const { paginatedItems, page, setPage, totalPages, totalItems, pageSize } =
     useTablePagination(records);
 
   const columnOptions = useMemo(() => {
     const options: Partial<Record<keyof ClientPaymentColumnFilters, string[]>> = {};
-    for (const field of FILTER_FIELDS) {
+    for (const field of filterFields) {
       if (field.type === 'select') {
         options[field.key] = getClientPaymentColumnOptions(optionRecords, field.key);
       }
     }
     return options;
-  }, [optionRecords]);
+  }, [filterFields, optionRecords]);
+
+  const minWidth = showSplitAmounts
+    ? showProjectColumn
+      ? 'min-w-[1200px]'
+      : 'min-w-[1100px]'
+    : showProjectColumn
+      ? 'min-w-[900px]'
+      : 'min-w-[720px]';
 
   return (
     <Card>
@@ -164,25 +194,31 @@ export function ClientPaymentTable({
       <CardContent>
         {records.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            No payments match your filters for this project.
+            No payments match your filters.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-left text-sm">
+            <table className={`w-full text-left text-sm ${minWidth}`}>
               <thead>
                 <tr className="border-b border-border bg-muted font-semibold text-muted-foreground">
                   <th className="px-2 py-3 font-medium">S.No</th>
                   <th className="px-2 py-3 font-medium">Date ↓</th>
                   <th className="px-2 py-3 font-medium">Description</th>
-                  <th className="px-2 py-3 font-medium text-right">Banking</th>
-                  <th className="px-2 py-3 font-medium text-right">Cash</th>
-                  <th className="px-2 py-3 font-medium text-right">GPay</th>
+                  {showProjectColumn && <th className="px-2 py-3 font-medium">Project</th>}
+                  {showSplitAmounts && (
+                    <>
+                      <th className="px-2 py-3 font-medium text-right">Banking</th>
+                      <th className="px-2 py-3 font-medium text-right">Cash</th>
+                      <th className="px-2 py-3 font-medium text-right">GPay</th>
+                    </>
+                  )}
                   <th className="px-2 py-3 font-medium text-right">Amount</th>
                   <th className="px-2 py-3 font-medium">Invoice / Remark</th>
                   <th className="px-2 py-3 font-medium">Comment</th>
+                  {onDelete && <th className="px-2 py-3 font-medium text-right">Remove</th>}
                 </tr>
                 <tr className="border-b border-border bg-muted/50">
-                  {FILTER_FIELDS.map((field) => (
+                  {BASE_FILTER_FIELDS.map((field) => (
                     <th key={field.key} className="px-2 py-2">
                       <ColumnFilterControl
                         field={field}
@@ -192,6 +228,37 @@ export function ClientPaymentTable({
                       />
                     </th>
                   ))}
+                  {showProjectColumn && (
+                    <th className="px-2 py-2">
+                      <EmptyFilterCell />
+                    </th>
+                  )}
+                  {showSplitAmounts &&
+                    SPLIT_AMOUNT_FILTER_FIELDS.map((field) => (
+                      <th key={field.key} className="px-2 py-2">
+                        <ColumnFilterControl
+                          field={field}
+                          filterValue={filters[field.key]}
+                          options={columnOptions[field.key] ?? []}
+                          onFilterChange={onFilterChange}
+                        />
+                      </th>
+                    ))}
+                  {TRAILING_FILTER_FIELDS.map((field) => (
+                    <th key={field.key} className="px-2 py-2">
+                      <ColumnFilterControl
+                        field={field}
+                        filterValue={filters[field.key]}
+                        options={columnOptions[field.key] ?? []}
+                        onFilterChange={onFilterChange}
+                      />
+                    </th>
+                  ))}
+                  {onDelete && (
+                    <th className="px-2 py-2">
+                      <EmptyFilterCell />
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -200,9 +267,18 @@ export function ClientPaymentTable({
                     <td className="px-2 py-3">{getDisplaySerialNumber(rowIndex, page, pageSize)}</td>
                     <td className="px-2 py-3 whitespace-nowrap">{formatCellDate(record.paymentDate)}</td>
                     <td className="px-2 py-3 max-w-xs">{record.description}</td>
-                    <td className="px-2 py-3 text-right">{formatAmountCell(record.banking)}</td>
-                    <td className="px-2 py-3 text-right">{formatAmountCell(record.cash)}</td>
-                    <td className="px-2 py-3 text-right">{formatAmountCell(record.gpay)}</td>
+                    {showProjectColumn && (
+                      <td className="px-2 py-3 whitespace-nowrap font-medium">
+                        {record.sheetProject}
+                      </td>
+                    )}
+                    {showSplitAmounts && (
+                      <>
+                        <td className="px-2 py-3 text-right">{formatAmountCell(record.banking)}</td>
+                        <td className="px-2 py-3 text-right">{formatAmountCell(record.cash)}</td>
+                        <td className="px-2 py-3 text-right">{formatAmountCell(record.gpay)}</td>
+                      </>
+                    )}
                     <td className="px-2 py-3 text-right font-medium text-income">
                       {formatCurrency(record.amount)}
                     </td>
@@ -212,6 +288,23 @@ export function ClientPaymentTable({
                     <td className="px-2 py-3 max-w-xs text-muted-foreground">
                       {record.comment || '—'}
                     </td>
+                    {onDelete && (
+                      <td className="px-2 py-3 text-right">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (window.confirm(`Remove payment "${record.description}"?`)) {
+                              onDelete(record.id);
+                            }
+                          }}
+                          aria-label={`Remove payment ${record.description}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

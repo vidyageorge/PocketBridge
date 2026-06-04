@@ -9,6 +9,7 @@ import {
   parseDescription,
   parseOptionalText,
 } from '@/lib/parseUtils';
+import { parseIciciSummaryFromRows } from '@/lib/iciciStatementSummary';
 import type { BankStatementEntry, BankStatementPreview, TransactionType } from '@/types/transaction';
 
 const TRAN_DATE_KEYS = [
@@ -87,6 +88,50 @@ const SKIP_COLUMN_KEYS = [
   'refno',
 ];
 
+function findStatementEndRow(rawRows: unknown[][], headerRowIndex: number): number {
+  for (let rowIndex = headerRowIndex + 1; rowIndex < rawRows.length; rowIndex += 1) {
+    const row = rawRows[rowIndex];
+    if (!Array.isArray(row)) {
+      continue;
+    }
+
+    const firstCell = String(row[0] ?? '').trim().toLowerCase();
+    const rowText = row.map((cell) => String(cell ?? '')).join(' ').toLowerCase();
+
+    if (
+      firstCell === 'current' ||
+      firstCell.includes('account related') ||
+      rowText.includes('account related other information')
+    ) {
+      return rowIndex;
+    }
+  }
+
+  return rawRows.length;
+}
+
+function isNonTransactionRow(row: Record<string, unknown>): boolean {
+  const dateText = String(getFieldValue(row, ...TRAN_DATE_KEYS) ?? '')
+    .trim()
+    .toLowerCase();
+  if (!dateText || dateText === 'current' || dateText.includes('account')) {
+    return true;
+  }
+
+  const description = String(getFieldValue(row, ...DESCRIPTION_KEYS) ?? '')
+    .trim()
+    .toLowerCase();
+  if (
+    description.includes('account related') ||
+    description.includes('micr code') ||
+    description.includes('ifs code')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function findHeaderRow(rawRows: unknown[][]): number {
   for (let rowIndex = 0; rowIndex < Math.min(rawRows.length, 60); rowIndex += 1) {
     const row = rawRows[rowIndex];
@@ -118,16 +163,29 @@ function findHeaderRow(rawRows: unknown[][]): number {
 
 function parseSheet(sheet: XLSX.WorkSheet): BankStatementPreview {
   const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
+  const statementSummary = parseIciciSummaryFromRows(rawRows);
   const headerRowIndex = findHeaderRow(rawRows);
+  const endRowIndex = findStatementEndRow(rawRows, headerRowIndex);
+  const rowLimit = Math.max(0, endRowIndex - headerRowIndex);
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
     range: headerRowIndex,
     defval: '',
-  });
+  }).slice(0, rowLimit);
 
-  return extractTransactionsFromStatement(rows);
+  const parsed = extractTransactionsFromStatement(rows);
+  return {
+    ...parsed,
+    statementSummary: statementSummary ?? parsed.statementSummary,
+  };
 }
 
 export async function parseBankStatementFile(file: File): Promise<BankStatementPreview> {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  if (extension === 'pdf') {
+    const { parseBankStatementPdf } = await import('@/lib/bankStatementPdf');
+    return parseBankStatementPdf(file);
+  }
+
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, {
     type: 'array',
@@ -266,6 +324,10 @@ function extractTransactionsFromStatement(
   const skipped: BankStatementPreview['skipped'] = [];
 
   rows.forEach((row, index) => {
+    if (isNonTransactionRow(row)) {
+      return;
+    }
+
     const rowNumber = index + 2;
     const fields = extractStatementFields(row);
     const typeIndicator = getFieldValue(row, ...TYPE_KEYS);

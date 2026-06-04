@@ -1,11 +1,15 @@
 import * as XLSX from 'xlsx';
 import { normalizeKey, parseAmount, parseDateValue, parseOptionalText } from '@/lib/parseUtils';
 import type {
+  AddClientProjectInput,
   ClientPaymentColumnFilters,
+  ClientPaymentInput,
   ClientPaymentRecord,
+  ClientPaymentRegistry,
   ClientPaymentSummary,
   ClientProjectMeta,
 } from '@/types/clientPayment';
+import { EMPTY_CLIENT_PAYMENT_REGISTRY } from '@/types/clientPayment';
 
 export const CLIENT_PAYMENT_BLANK_FILTER = '__blank__';
 
@@ -290,8 +294,113 @@ export function computeClientPaymentSummary(records: ClientPaymentRecord[]): Cli
   );
 }
 
-export function getClientProjectList(records: ClientPaymentRecord[]): ClientProjectMeta[] {
+/**
+ * Normalizes user input to a sheet label such as P-01.
+ */
+export function normalizeSheetProjectLabel(value: string): string {
+  const trimmed = value.trim().toUpperCase();
+  if (!trimmed) {
+    return '';
+  }
+
+  const sheetMatch = trimmed.match(/^P-(\d+)$/);
+  if (sheetMatch) {
+    return `P-${sheetMatch[1].padStart(2, '0')}`;
+  }
+
+  const digitsOnly = trimmed.replace(/^P-?/, '');
+  if (/^\d+$/.test(digitsOnly)) {
+    return `P-${digitsOnly.padStart(2, '0')}`;
+  }
+
+  return trimmed;
+}
+
+export function getNextClientPaymentId(records: ClientPaymentRecord[]): number {
+  return records.reduce((maximum, record) => Math.max(maximum, record.id), 0) + 1;
+}
+
+export function getNextClientPaymentSno(
+  records: ClientPaymentRecord[],
+  sheetProject: string,
+): string {
+  const projectRecords = filterClientPaymentsByProject(records, sheetProject);
+  const maximumSerial = projectRecords.reduce((maximum, record) => {
+    const parsedSerial = Number(record.sno);
+    if (!Number.isFinite(parsedSerial)) {
+      return maximum;
+    }
+    return Math.max(maximum, parsedSerial);
+  }, 0);
+
+  return String(maximumSerial + 1);
+}
+
+export function resolveClientPaymentAmounts(
+  input: Pick<ClientPaymentInput, 'banking' | 'cash' | 'gpay'>,
+  useSplitAmounts: boolean,
+): Pick<ClientPaymentRecord, 'banking' | 'cash' | 'gpay' | 'amount'> {
+  const banking = Math.max(0, input.banking);
+  const cash = Math.max(0, input.cash);
+  const gpay = Math.max(0, input.gpay);
+
+  if (useSplitAmounts) {
+    const amount = banking + cash + gpay;
+    return { banking, cash, gpay, amount };
+  }
+
+  const amount = banking;
+  return { banking: amount, cash: 0, gpay: 0, amount };
+}
+
+export function buildClientPaymentRecord(
+  records: ClientPaymentRecord[],
+  registry: ClientPaymentRegistry,
+  input: ClientPaymentInput,
+  useSplitAmounts: boolean,
+): ClientPaymentRecord | null {
+  const sheetProject = normalizeSheetProjectLabel(input.sheetProject);
+  const meta = getClientProjectMeta(records, registry, sheetProject);
+  if (!meta) {
+    return null;
+  }
+
+  const amounts = resolveClientPaymentAmounts(input, useSplitAmounts);
+  const trimmedDescription = input.description.trim();
+
+  if (!input.paymentDate || (!trimmedDescription && amounts.amount === 0)) {
+    return null;
+  }
+
+  return {
+    id: getNextClientPaymentId(records),
+    sheetProject: meta.sheetProject,
+    projectCode: meta.projectCode,
+    projectName: meta.projectName,
+    clientName: meta.clientName,
+    sno: getNextClientPaymentSno(records, meta.sheetProject),
+    paymentDate: input.paymentDate,
+    description: trimmedDescription || '—',
+    banking: amounts.banking,
+    cash: amounts.cash,
+    gpay: amounts.gpay,
+    amount: amounts.amount,
+    invoiceNumber: input.invoiceNumber?.trim() ?? '',
+    remarkDate: '',
+    remarkValue: 0,
+    comment: input.comment?.trim() ?? '',
+  };
+}
+
+export function getClientProjectList(
+  records: ClientPaymentRecord[],
+  registry: ClientPaymentRegistry = EMPTY_CLIENT_PAYMENT_REGISTRY,
+): ClientProjectMeta[] {
   const projects = new Map<string, ClientProjectMeta>();
+
+  for (const project of registry.projects) {
+    projects.set(project.sheetProject, project);
+  }
 
   for (const record of records) {
     if (!projects.has(record.sheetProject)) {
@@ -309,16 +418,28 @@ export function getClientProjectList(records: ClientPaymentRecord[]): ClientProj
   );
 }
 
-export function getDefaultClientProject(records: ClientPaymentRecord[]): string {
-  const projects = getClientProjectList(records);
-  return projects[0]?.sheetProject ?? 'P-01';
+export function getDefaultClientProject(
+  records: ClientPaymentRecord[],
+  registry: ClientPaymentRegistry = EMPTY_CLIENT_PAYMENT_REGISTRY,
+): string {
+  const projects = getClientProjectList(records, registry);
+  return projects[0]?.sheetProject ?? '';
 }
 
 export function getClientProjectMeta(
   records: ClientPaymentRecord[],
+  registry: ClientPaymentRegistry,
   sheetProject: string,
 ): ClientProjectMeta | null {
-  const record = records.find((entry) => entry.sheetProject === sheetProject);
+  const normalizedProject = normalizeSheetProjectLabel(sheetProject);
+  const fromRegistry = registry.projects.find(
+    (project) => project.sheetProject === normalizedProject,
+  );
+  if (fromRegistry) {
+    return fromRegistry;
+  }
+
+  const record = records.find((entry) => entry.sheetProject === normalizedProject);
   if (!record) {
     return null;
   }
@@ -328,5 +449,185 @@ export function getClientProjectMeta(
     projectCode: record.projectCode,
     projectName: record.projectName,
     clientName: record.clientName,
+  };
+}
+
+export type ClientSummary = {
+  clientName: string;
+  projectCount: number;
+  paymentCount: number;
+  totalReceived: number;
+  projects: string[];
+};
+
+function resolveClientName(record: ClientPaymentRecord): string {
+  return record.clientName.trim() || 'Unknown client';
+}
+
+/**
+ * Builds one row per client with totals and linked project sheets.
+ */
+export function getClientList(
+  records: ClientPaymentRecord[],
+  registry: ClientPaymentRegistry = EMPTY_CLIENT_PAYMENT_REGISTRY,
+): ClientSummary[] {
+  const clients = new Map<string, ClientSummary>();
+
+  for (const clientName of registry.clientNames) {
+    const trimmedName = clientName.trim();
+    if (!trimmedName) {
+      continue;
+    }
+    clients.set(trimmedName, {
+      clientName: trimmedName,
+      projectCount: 0,
+      paymentCount: 0,
+      totalReceived: 0,
+      projects: [],
+    });
+  }
+
+  for (const project of registry.projects) {
+    const trimmedName = project.clientName.trim();
+    if (!trimmedName) {
+      continue;
+    }
+    const existing = clients.get(trimmedName) ?? {
+      clientName: trimmedName,
+      projectCount: 0,
+      paymentCount: 0,
+      totalReceived: 0,
+      projects: [],
+    };
+    if (!existing.projects.includes(project.sheetProject)) {
+      existing.projects.push(project.sheetProject);
+      existing.projectCount = existing.projects.length;
+    }
+    clients.set(trimmedName, existing);
+  }
+
+  for (const record of records) {
+    const clientName = resolveClientName(record);
+    const existing = clients.get(clientName) ?? {
+      clientName,
+      projectCount: 0,
+      paymentCount: 0,
+      totalReceived: 0,
+      projects: [],
+    };
+
+    existing.paymentCount += 1;
+    existing.totalReceived += record.amount;
+
+    if (!existing.projects.includes(record.sheetProject)) {
+      existing.projects.push(record.sheetProject);
+      existing.projectCount = existing.projects.length;
+    }
+
+    clients.set(clientName, existing);
+  }
+
+  return [...clients.values()].sort((left, right) =>
+    left.clientName.localeCompare(right.clientName),
+  );
+}
+
+export function getDefaultClientName(
+  records: ClientPaymentRecord[],
+  registry: ClientPaymentRegistry = EMPTY_CLIENT_PAYMENT_REGISTRY,
+): string {
+  const clients = getClientList(records, registry);
+  return clients[0]?.clientName ?? '';
+}
+
+export function getProjectsForClient(
+  records: ClientPaymentRecord[],
+  registry: ClientPaymentRegistry,
+  clientName: string,
+): ClientProjectMeta[] {
+  const trimmedClient = clientName.trim();
+  return getClientProjectList(records, registry).filter(
+    (project) => project.clientName.trim() === trimmedClient,
+  );
+}
+
+/**
+ * Returns the next workbook-style sheet label (P-01, P-02, …).
+ */
+export function getNextSheetProjectLabel(
+  records: ClientPaymentRecord[],
+  registry: ClientPaymentRegistry,
+): string {
+  const projects = getClientProjectList(records, registry);
+  let maximumNumber = 0;
+
+  for (const project of projects) {
+    const match = project.sheetProject.match(/^P-(\d+)$/i);
+    if (match) {
+      maximumNumber = Math.max(maximumNumber, Number(match[1]));
+    }
+  }
+
+  return `P-${String(maximumNumber + 1).padStart(2, '0')}`;
+}
+
+export function validateAddClientProjectInput(input: AddClientProjectInput): string | null {
+  const sheetProject = normalizeSheetProjectLabel(input.sheetProject);
+  if (!sheetProject) {
+    return 'Enter a project label such as P-05.';
+  }
+  if (!input.projectCode.trim()) {
+    return 'Enter a project code.';
+  }
+  if (!input.projectName.trim()) {
+    return 'Enter a project name.';
+  }
+  if (!input.clientName.trim()) {
+    return 'Enter a client name.';
+  }
+  return null;
+}
+
+export function filterClientPaymentsByClient(
+  records: ClientPaymentRecord[],
+  clientName: string,
+): ClientPaymentRecord[] {
+  return records.filter((record) => resolveClientName(record) === clientName);
+}
+
+export function sheetUsesSplitAmounts(records: ClientPaymentRecord[]): boolean {
+  return records.some(
+    (record) => record.banking > 0 || record.cash > 0 || record.gpay > 0,
+  );
+}
+
+/**
+ * Builds project and client lists from imported payment rows.
+ */
+export function buildClientPaymentRegistry(records: ClientPaymentRecord[]): ClientPaymentRegistry {
+  const projects = new Map<string, ClientProjectMeta>();
+  const clientNames = new Set<string>();
+
+  for (const record of records) {
+    if (!projects.has(record.sheetProject)) {
+      projects.set(record.sheetProject, {
+        sheetProject: record.sheetProject,
+        projectCode: record.projectCode,
+        projectName: record.projectName,
+        clientName: record.clientName,
+      });
+    }
+
+    const trimmedClient = record.clientName.trim();
+    if (trimmedClient) {
+      clientNames.add(trimmedClient);
+    }
+  }
+
+  return {
+    projects: [...projects.values()].sort((left, right) =>
+      left.sheetProject.localeCompare(right.sheetProject),
+    ),
+    clientNames: [...clientNames].sort((left, right) => left.localeCompare(right)),
   };
 }

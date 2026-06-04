@@ -15,9 +15,9 @@
 
 | Layer | Technology |
 |---|---|
-| **Persistence** | Browser `localStorage` (key: `pocketbridge_txs`) |
+| **Persistence** | SQLite via local API (`server/data/pocketbridge.db`), with `localStorage` fallback |
 | **Excel read/write** | SheetJS (`xlsx`) — bank statement import & export |
-| **Backend** | None — runs entirely in the browser |
+| **Backend** | Node + Express + `better-sqlite3` (optional; see `DATABASE.md`) |
 
 ## Tooling
 
@@ -31,9 +31,11 @@ Single-page app (SPA) → React Context for transactions → no server, no datab
 ## Commands
 
 ```bash
-npm run dev      # local dev (http://localhost:5173)
-npm run build    # production build → dist/
-npm run preview  # preview production build
+npm run setup:server   # install API dependencies (once)
+npm run dev:server     # SQLite API on http://localhost:3001
+npm run dev            # web app (http://localhost:5173)
+npm run build          # production build → dist/
+npm run preview        # preview production build
 ```
 
 ## Key dependencies

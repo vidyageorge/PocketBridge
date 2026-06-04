@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { DataBackendProvider } from '@/context/DataBackendProvider';
 import { ClientPaymentProvider } from '@/context/ClientPaymentContext';
 import { ExpenseProvider } from '@/context/ExpenseContext';
 import { PeriodFilterProvider } from '@/context/PeriodFilterContext';
+import { PeriodFilterBootstrap } from '@/components/filters/PeriodFilterBootstrap';
 import { ProcurementProvider } from '@/context/ProcurementContext';
 import { TransactionProvider } from '@/context/TransactionContext';
 import { Footer } from '@/components/layout/Footer';
@@ -11,14 +13,37 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AccountTab } from '@/components/tabs/AccountTab';
 import { CombinedStatementTab } from '@/components/tabs/CombinedStatementTab';
 import { DashboardTab } from '@/components/tabs/DashboardTab';
-import { ClientProjectsTab } from '@/components/tabs/ClientProjectsTab';
-import { ExpenseTab } from '@/components/tabs/ExpenseTab';
+import { ProjectClientTab, type ProjectClientSection } from '@/components/tabs/ProjectClientTab';
+import { ExpenseTab, type ExpenseSection } from '@/components/tabs/ExpenseTab';
 import { ProcurementTab } from '@/components/tabs/ProcurementTab';
+import { SuppliersTab } from '@/components/tabs/SuppliersTab';
 import type { DashboardView } from '@/lib/dashboardViews';
 
 function AppContent() {
   const [mainTab, setMainTab] = useState('dashboard');
   const [dashboardView, setDashboardView] = useState<DashboardView>('financial');
+  const [expenseSection, setExpenseSection] = useState<ExpenseSection>('project');
+  const [projectClientSection, setProjectClientSection] =
+    useState<ProjectClientSection>('projects');
+
+  const openProjectsPage = () => {
+    setProjectClientSection('projects');
+    setMainTab('projects-client');
+  };
+
+  const openClientsPage = () => {
+    setProjectClientSection('clients');
+    setMainTab('projects-client');
+  };
+
+  const openEmployeesPage = () => {
+    setExpenseSection('employee');
+    setMainTab('expense');
+  };
+
+  const openSuppliersPage = () => {
+    setMainTab('suppliers');
+  };
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -44,12 +69,19 @@ function AppContent() {
             <TabsTrigger value="cash">Cash Account</TabsTrigger>
             <TabsTrigger value="statement">Combined Statement</TabsTrigger>
             <TabsTrigger value="procurement">Procurement</TabsTrigger>
-            <TabsTrigger value="clients">Clients &amp; Projects</TabsTrigger>
+            <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+            <TabsTrigger value="projects-client">Projects &amp; Client</TabsTrigger>
             <TabsTrigger value="expense">Expense</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
-            <DashboardTab activeView={dashboardView} />
+            <DashboardTab
+              activeView={dashboardView}
+              onOpenProjectsPage={openProjectsPage}
+              onOpenClientsPage={openClientsPage}
+              onOpenEmployeesPage={openEmployeesPage}
+              onOpenSuppliersPage={openSuppliersPage}
+            />
           </TabsContent>
           <TabsContent value="bank">
             <AccountTab source="bank" />
@@ -63,11 +95,17 @@ function AppContent() {
           <TabsContent value="procurement">
             <ProcurementTab />
           </TabsContent>
-          <TabsContent value="clients">
-            <ClientProjectsTab />
+          <TabsContent value="suppliers">
+            <SuppliersTab />
+          </TabsContent>
+          <TabsContent value="projects-client">
+            <ProjectClientTab
+              activeSection={projectClientSection}
+              onSectionChange={setProjectClientSection}
+            />
           </TabsContent>
           <TabsContent value="expense">
-            <ExpenseTab />
+            <ExpenseTab activeSection={expenseSection} onSectionChange={setExpenseSection} />
           </TabsContent>
         </Tabs>
       </main>
@@ -78,16 +116,20 @@ function AppContent() {
 
 export default function App() {
   return (
+    <DataBackendProvider>
     <TransactionProvider>
       <ProcurementProvider>
         <ClientPaymentProvider>
           <ExpenseProvider>
             <PeriodFilterProvider>
-              <AppContent />
+              <PeriodFilterBootstrap>
+                <AppContent />
+              </PeriodFilterBootstrap>
             </PeriodFilterProvider>
           </ExpenseProvider>
         </ClientPaymentProvider>
       </ProcurementProvider>
     </TransactionProvider>
+    </DataBackendProvider>
   );
 }

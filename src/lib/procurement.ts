@@ -6,7 +6,9 @@ import type {
   ProcurementRecord,
   ProcurementSummary,
   ProcurementYearFilter,
+  SupplierRegistry,
 } from '@/types/procurement';
+import { EMPTY_SUPPLIER_REGISTRY } from '@/types/procurement';
 
 const MONTH_NAME_TO_NUMBER: Record<string, number> = {
   january: 1,
@@ -104,13 +106,14 @@ export function parseProcurementWorkbook(buffer: ArrayBuffer): ProcurementRecord
   const records: ProcurementRecord[] = [];
   let nextId = 1;
 
-  for (const sheetName of workbook.SheetNames) {
+  for (const rawSheetName of workbook.SheetNames) {
+    const sheetName = rawSheetName.trim();
     const period = parseProcurementSheetName(sheetName);
     if (!period) {
       continue;
     }
 
-    const sheet = workbook.Sheets[sheetName];
+    const sheet = workbook.Sheets[rawSheetName];
     if (!sheet) {
       continue;
     }
@@ -374,4 +377,109 @@ export function getProcurementMonthsForYear(
       .map((record) => record.sheetMonth),
   );
   return Array.from(months).sort((left, right) => left - right);
+}
+
+export type SupplierSummary = {
+  supplierName: string;
+  orderCount: number;
+  totalAmount: number;
+  paidAmount: number;
+  pendingAmount: number;
+  completedCount: number;
+  pendingCount: number;
+  projects: string[];
+};
+
+function resolveSupplierName(record: ProcurementRecord): string {
+  return record.supplier.trim() || 'Unknown supplier';
+}
+
+function createEmptySupplierSummary(supplierName: string): SupplierSummary {
+  return {
+    supplierName,
+    orderCount: 0,
+    totalAmount: 0,
+    paidAmount: 0,
+    pendingAmount: 0,
+    completedCount: 0,
+    pendingCount: 0,
+    projects: [],
+  };
+}
+
+/**
+ * Builds one row per supplier with totals and linked projects.
+ */
+export function getSupplierList(
+  records: ProcurementRecord[],
+  registry: SupplierRegistry = EMPTY_SUPPLIER_REGISTRY,
+): SupplierSummary[] {
+  const suppliers = new Map<string, SupplierSummary>();
+
+  for (const supplierName of registry.supplierNames) {
+    const trimmedName = supplierName.trim();
+    if (!trimmedName) {
+      continue;
+    }
+    suppliers.set(trimmedName, createEmptySupplierSummary(trimmedName));
+  }
+
+  for (const record of records) {
+    const supplierName = resolveSupplierName(record);
+    const existing = suppliers.get(supplierName) ?? {
+      supplierName,
+      orderCount: 0,
+      totalAmount: 0,
+      paidAmount: 0,
+      pendingAmount: 0,
+      completedCount: 0,
+      pendingCount: 0,
+      projects: [],
+    };
+
+    existing.orderCount += 1;
+    existing.totalAmount += record.amount;
+
+    const isCompleted = record.paymentStatus.toLowerCase().includes('completed');
+    if (isCompleted) {
+      existing.completedCount += 1;
+      existing.paidAmount += record.amount;
+    } else {
+      existing.pendingCount += 1;
+      existing.pendingAmount += record.amount;
+    }
+
+    const projectLabel = record.project.trim();
+    if (projectLabel && !existing.projects.includes(projectLabel)) {
+      existing.projects.push(projectLabel);
+    }
+
+    suppliers.set(supplierName, existing);
+  }
+
+  return [...suppliers.values()].sort((left, right) =>
+    left.supplierName.localeCompare(right.supplierName),
+  );
+}
+
+export function getDefaultSupplierName(
+  records: ProcurementRecord[],
+  registry: SupplierRegistry = EMPTY_SUPPLIER_REGISTRY,
+): string {
+  const suppliers = getSupplierList(records, registry);
+  return suppliers[0]?.supplierName ?? '';
+}
+
+export function filterProcurementBySupplier(
+  records: ProcurementRecord[],
+  supplierName: string,
+): ProcurementRecord[] {
+  return records.filter((record) => resolveSupplierName(record) === supplierName);
+}
+
+export function countUniqueSuppliers(
+  records: ProcurementRecord[],
+  registry: SupplierRegistry = EMPTY_SUPPLIER_REGISTRY,
+): number {
+  return getSupplierList(records, registry).length;
 }

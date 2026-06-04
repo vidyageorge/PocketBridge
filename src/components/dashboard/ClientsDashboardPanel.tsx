@@ -4,21 +4,30 @@ import {
   aggregateAmountByLabel,
   countUniqueClients,
   filterClientPaymentsByPeriod,
+  getPortfolioCounts,
 } from '@/lib/dashboardAggregates';
 import { computeClientPaymentSummary } from '@/lib/clientPayment';
 import { useClientPayments } from '@/context/ClientPaymentContext';
-import { usePeriodFilter } from '@/context/PeriodFilterContext';
+import { useExpenses } from '@/context/ExpenseContext';
+import { useDashboardPeriod } from '@/context/DashboardPeriodContext';
+import { DashboardAnswerCard } from '@/components/dashboard/DashboardAnswerCard';
 import { DashboardBarChart } from '@/components/dashboard/DashboardBarChart';
-import { DashboardMetricGrid } from '@/components/dashboard/DashboardMetricGrid';
 import { DashboardRankedList } from '@/components/dashboard/DashboardRankedList';
 import { BRAND_COLORS } from '@/lib/constants';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 /**
- * Client payment receipts and project-level collections for the selected period.
+ * Client list and who paid how much for the selected period.
  */
 export function ClientsDashboardPanel() {
   const { records } = useClientPayments();
-  const { month, year } = usePeriodFilter();
+  const { data: expenses } = useExpenses();
+  const { month, year } = useDashboardPeriod();
+
+  const portfolio = useMemo(
+    () => getPortfolioCounts(records, expenses.project, expenses.employee),
+    [records, expenses.project, expenses.employee],
+  );
 
   const filtered = useMemo(
     () => filterClientPaymentsByPeriod(records, month, year),
@@ -32,7 +41,7 @@ export function ClientsDashboardPanel() {
     () =>
       aggregateAmountByLabel(
         filtered.map((record) => ({
-          label: `${record.sheetProject}${record.projectName ? ` — ${record.projectName}` : ''}`,
+          label: record.projectName.trim() || record.sheetProject,
           amount: record.amount,
         })),
       ),
@@ -50,35 +59,41 @@ export function ClientsDashboardPanel() {
     [filtered],
   );
 
-  const metrics = [
-    { label: 'Payments', value: String(summary.paymentCount), tone: 'text-foreground' },
-    { label: 'Total received', value: formatCurrency(summary.totalAmount), tone: 'text-income' },
-    { label: 'Active clients', value: String(uniqueClients), tone: 'text-foreground' },
-    { label: 'Via banking', value: formatCurrency(summary.totalBanking), tone: 'text-foreground' },
-    { label: 'Via cash', value: formatCurrency(summary.totalCash), tone: 'text-foreground' },
-    { label: 'Via GPay', value: formatCurrency(summary.totalGpay), tone: 'text-foreground' },
-  ];
-
   return (
     <div className="space-y-6">
-      <DashboardMetricGrid metrics={metrics} columns={3} />
+      <Card className="border-border/80 bg-white/95">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Clients</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <DashboardAnswerCard label="Total clients" answer={String(portfolio.clientCount)} />
+            <DashboardAnswerCard label="Active clients" answer={String(uniqueClients)} />
+            <DashboardAnswerCard
+              label="Total received"
+              answer={formatCurrency(summary.totalAmount)}
+              tone="text-income"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <DashboardBarChart
-          title="Receipts by project"
+          title="Payment per project"
           data={byProject}
           barColor={BRAND_COLORS.chartGold}
         />
         <DashboardBarChart
-          title="Receipts by client"
+          title="Payment per client"
           data={byClient}
           barColor={BRAND_COLORS.chartTeal}
         />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <DashboardRankedList title="Projects ranked by receipts" rows={byProject} />
-        <DashboardRankedList title="Clients ranked by receipts" rows={byClient} />
+        <DashboardRankedList title="Top clients" rows={byClient} />
+        <DashboardRankedList title="Top projects" rows={byProject} />
       </div>
     </div>
   );

@@ -1,28 +1,25 @@
 import procurementSeed from '@/data/procurement-seed.json';
+import { getCachedStoreValue, setCachedStoreValue } from '@/lib/dataBackend';
+import { STORE_KEYS } from '@/lib/storeKeys';
 import type { ProcurementRecord } from '@/types/procurement';
 
-export const PROCUREMENT_STORAGE_KEY = 'pocketbridge_procurement';
+export const PROCUREMENT_STORAGE_KEY = STORE_KEYS.PROCUREMENT;
 
 export function loadProcurementRecords(): ProcurementRecord[] {
-  try {
-    const stored = localStorage.getItem(PROCUREMENT_STORAGE_KEY);
-    if (!stored) {
-      return seedProcurementRecords();
-    }
+  const parsed = getCachedStoreValue<ProcurementRecord[] | null>(
+    STORE_KEYS.PROCUREMENT,
+    null,
+  );
 
-    const parsed = JSON.parse(stored) as ProcurementRecord[];
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return seedProcurementRecords();
-    }
-
-    return parsed;
-  } catch {
+  if (!Array.isArray(parsed) || parsed.length === 0) {
     return seedProcurementRecords();
   }
+
+  return parsed;
 }
 
 export function saveProcurementRecords(records: ProcurementRecord[]): void {
-  localStorage.setItem(PROCUREMENT_STORAGE_KEY, JSON.stringify(records));
+  setCachedStoreValue(STORE_KEYS.PROCUREMENT, records);
 }
 
 export function getNextProcurementId(records: ProcurementRecord[]): number {

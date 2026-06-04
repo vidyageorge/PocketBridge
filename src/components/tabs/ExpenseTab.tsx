@@ -7,7 +7,14 @@ import { ExpenseMonthFilter } from '@/components/expenses/ExpenseMonthFilter';
 import { ProjectExpensePanel } from '@/components/expenses/ProjectExpensePanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-export function ExpenseTab() {
+export type ExpenseSection = 'project' | 'employee';
+
+type ExpenseTabProps = {
+  activeSection: ExpenseSection;
+  onSectionChange: (section: ExpenseSection) => void;
+};
+
+export function ExpenseTab({ activeSection, onSectionChange }: ExpenseTabProps) {
   const { data } = useExpenses();
   const allPeriodRecords = useMemo(
     () => [...data.project, ...data.employee],
@@ -32,7 +39,11 @@ export function ExpenseTab() {
         onYearChange={setYear}
       />
 
-      <Tabs defaultValue="project" className="w-full">
+      <Tabs
+        value={activeSection}
+        onValueChange={(value) => onSectionChange(value as ExpenseSection)}
+        className="w-full"
+      >
         <TabsList>
           <TabsTrigger value="project">Project Expense</TabsTrigger>
           <TabsTrigger value="employee">Employee Expense</TabsTrigger>

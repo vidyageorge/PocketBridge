@@ -1,0 +1,23 @@
+# Render Blueprint — optional one-click deploy
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: pocketbridge-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.mjs
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pocketbridge
+          property: connectionString
+      - key: NODE_VERSION
+        value: "22"
+
+databases:
+  - name: pocketbridge
+    plan: free
+    databaseName: pocketbridge
+    user: pocketbridge

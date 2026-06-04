@@ -1,5 +1,9 @@
+import { getCachedStoreValue, setCachedStoreValue } from '@/lib/dataBackend';
+import { STORE_KEYS } from '@/lib/storeKeys';
 import type { Transaction } from '@/types/transaction';
-import { SEED_TRANSACTIONS, STORAGE_KEY } from '@/lib/constants';
+
+export { STORE_KEYS } from '@/lib/storeKeys';
+export const STORAGE_KEY = STORE_KEYS.TRANSACTIONS;
 
 function normalizeTransaction(raw: Transaction): Transaction {
   const withdrawal =
@@ -11,6 +15,8 @@ function normalizeTransaction(raw: Transaction): Transaction {
     date: raw.date,
     valueDate: raw.valueDate,
     desc: raw.desc,
+    clientName: raw.clientName,
+    spentBy: raw.spentBy,
     location: raw.location,
     chqNo: raw.chqNo,
     mode: raw.mode,
@@ -25,34 +31,20 @@ function normalizeTransaction(raw: Transaction): Transaction {
 }
 
 export function loadTransactions(): Transaction[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
-      return seedTransactions();
-    }
-
-    const parsed = JSON.parse(stored) as Transaction[];
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return seedTransactions();
-    }
-
-    return parsed.map(normalizeTransaction);
-  } catch {
+  const stored = getCachedStoreValue<Transaction[] | null>(STORE_KEYS.TRANSACTIONS, null);
+  if (!stored || !Array.isArray(stored) || stored.length === 0) {
     return seedTransactions();
   }
+
+  return stored.map(normalizeTransaction);
 }
 
 export function saveTransactions(transactions: Transaction[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+  setCachedStoreValue(STORE_KEYS.TRANSACTIONS, transactions);
 }
 
 export function seedTransactions(): Transaction[] {
-  const seeded = SEED_TRANSACTIONS.map((transaction, index) =>
-    normalizeTransaction({
-      id: index + 1,
-      ...transaction,
-    }),
-  );
+  const seeded: Transaction[] = [];
   saveTransactions(seeded);
   return seeded;
 }

@@ -3,6 +3,8 @@ import { CheckCircle2, Loader2, Upload } from 'lucide-react';
 import { parseBankStatementFile } from '@/lib/bankStatement';
 import { inferCategoryFromDescription } from '@/lib/categorize';
 import { formatCurrency } from '@/lib/currency';
+import { inferStatementPeriod } from '@/lib/filters';
+import { usePeriodFilter } from '@/context/PeriodFilterContext';
 import { useTransactions } from '@/context/TransactionContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -14,10 +16,13 @@ type ImportResult = {
   totalIncome: number;
   totalExpense: number;
   skipped: number;
+  closingBalance?: number;
+  asOnDate?: string;
 };
 
 export function BankStatementImport() {
   const { importTransactions } = useTransactions();
+  const { setPeriod } = usePeriodFilter();
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -30,8 +35,8 @@ export function BankStatementImport() {
       setIsProcessing(true);
 
       const extension = file.name.split('.').pop()?.toLowerCase();
-      if (!extension || !['csv', 'xlsx', 'xls'].includes(extension)) {
-        setError('Please upload a CSV or Excel file exported from your bank.');
+      if (!extension || !['csv', 'xlsx', 'xls', 'pdf'].includes(extension)) {
+        setError('Please upload a CSV, Excel, or PDF statement from ICICI.');
         setIsProcessing(false);
         return;
       }
@@ -39,14 +44,18 @@ export function BankStatementImport() {
       try {
         const parsed = await parseBankStatementFile(file);
 
-        if (parsed.entries.length === 0) {
+        if (parsed.entries.length === 0 && !parsed.statementSummary) {
           setError(
-            parsed.skipped.length > 0
-              ? `Could not read transactions from this file (${parsed.skipped.length} rows skipped). Export the statement as Excel or CSV from your bank app and try again.`
-              : 'No transactions found in this file. Make sure it is a bank statement with date, description, and debit/credit columns.',
+            'Could not read this statement. Use the ICICI CSV export or the monthly PDF from net banking.',
           );
           setIsProcessing(false);
           return;
+        }
+
+        if (parsed.entries.length === 0 && parsed.statementSummary) {
+          window.alert(
+            `Closing balance saved: ${formatCurrency(parsed.statementSummary.balance)} as on ${parsed.statementSummary.asOnDate}. Transaction lines were not detected in this PDF — export CSV from ICICI for the full table.`,
+          );
         }
 
         importTransactions(
@@ -65,7 +74,20 @@ export function BankStatementImport() {
             amount: entry.amount,
             source: 'bank',
           })),
+          {
+            statementSummary: parsed.statementSummary,
+            fileName: file.name,
+          },
         );
+
+        const dates = parsed.entries.map((entry) => entry.date);
+        if (parsed.statementSummary) {
+          dates.push(parsed.statementSummary.asOnDate);
+        }
+        const period = inferStatementPeriod(file.name, dates);
+        if (period) {
+          setPeriod(period);
+        }
 
         const summary = parsed.entries.reduce(
           (accumulator, entry) => {
@@ -85,15 +107,17 @@ export function BankStatementImport() {
           fileName: file.name,
           imported: parsed.entries.length,
           skipped: parsed.skipped.length,
+          closingBalance: parsed.statementSummary?.balance,
+          asOnDate: parsed.statementSummary?.asOnDate,
           ...summary,
         });
       } catch {
-        setError('Unable to read this file. Export your bank statement as Excel (.xlsx) or CSV and upload again.');
+        setError('Unable to read this file. Try the ICICI CSV or PDF statement download.');
       } finally {
         setIsProcessing(false);
       }
     },
-    [importTransactions],
+    [importTransactions, setPeriod],
   );
 
   return (
@@ -126,12 +150,12 @@ export function BankStatementImport() {
             <Upload className="mb-3 h-8 w-8 text-muted-foreground" />
           )}
           <p className="mb-4 text-sm font-medium">
-            {isProcessing ? 'Processing statement…' : 'Drop your bank statement here'}
+            {isProcessing ? 'Processing statement…' : 'Drop your ICICI statement (CSV or PDF)'}
           </p>
           <label className={`cursor-pointer ${isProcessing ? 'hidden' : ''}`}>
             <input
               type="file"
-              accept=".csv,.xlsx,.xls"
+              accept=".csv,.xlsx,.xls,.pdf"
               className="sr-only"
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -154,15 +178,28 @@ export function BankStatementImport() {
             <div className="mb-2 flex items-center gap-2 text-primary">
               <CheckCircle2 className="h-5 w-5" />
               <p className="font-medium">
-                {result.imported} transactions imported from {result.fileName}
+                {result.imported > 0
+                  ? `${result.imported} transactions imported from ${result.fileName}`
+                  : `Statement summary saved from ${result.fileName}`}
               </p>
             </div>
-            <p className="text-sm text-income">
-              {result.incomeCount} credits — {formatCurrency(result.totalIncome)}
-            </p>
-            <p className="text-sm text-expense">
-              {result.expenseCount} debits — {formatCurrency(result.totalExpense)}
-            </p>
+            {result.closingBalance !== undefined && (
+              <p className="text-sm font-medium text-income">
+                Closing balance
+                {result.asOnDate ? ` (as on ${result.asOnDate})` : ''}:{' '}
+                {formatCurrency(result.closingBalance)}
+              </p>
+            )}
+            {result.imported > 0 && (
+              <>
+                <p className="text-sm text-income">
+                  {result.incomeCount} credits — {formatCurrency(result.totalIncome)}
+                </p>
+                <p className="text-sm text-expense">
+                  {result.expenseCount} debits — {formatCurrency(result.totalExpense)}
+                </p>
+              </>
+            )}
             {result.skipped > 0 && (
               <p className="mt-1 text-xs text-muted-foreground">{result.skipped} rows skipped</p>
             )}
