@@ -50,3 +50,5 @@ With the local API running, data is saved to `server/data/pocketbridge.db`. With
 ## License
 
 MIT
+
+Push to GitHub and redeploy on Render to see it live. To try locally: npm run dev:server + npm run dev, make a change (e.g. add a cash entry), then open Activity Log.
