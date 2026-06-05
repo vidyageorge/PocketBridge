@@ -7,6 +7,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { buildFieldChanges, captureStoreSnapshot } from '@/lib/activityLog';
+import { recordActivity } from '@/lib/activityLogRecorder';
 import {
   buildClientPaymentRecord,
   normalizeSheetProjectLabel,
@@ -23,6 +25,7 @@ import {
   loadClientPaymentRegistry,
   saveClientPaymentRegistry,
 } from '@/lib/clientPaymentRegistryStorage';
+import { STORE_KEYS } from '@/lib/storeKeys';
 import type {
   AddClientProjectInput,
   ClientPaymentInput,
@@ -62,11 +65,24 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
   const [registry, setRegistry] = useState<ClientPaymentRegistry>(() => loadClientPaymentRegistry());
 
   const replaceFromFile = useCallback(async (file: File) => {
+    const undoPayload = captureStoreSnapshot([
+      STORE_KEYS.CLIENT_PAYMENTS,
+      STORE_KEYS.CLIENT_PAYMENT_REGISTRY,
+    ]);
     const buffer = await file.arrayBuffer();
     const parsed = parseClientPaymentWorkbook(buffer);
     setRecords(parsed);
     saveClientPaymentRecords(parsed);
     setRegistry(persistRegistry(buildClientPaymentRegistry(parsed)));
+
+    recordActivity({
+      action: 'import',
+      entityType: 'client_payment',
+      title: `Imported client payments workbook (${parsed.length} entries)`,
+      detail: file.name,
+      undoPayload,
+    });
+
     return parsed.length;
   }, []);
 
@@ -94,6 +110,8 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
 
     const existsInPayments = records.some((record) => record.sheetProject === sheetProject);
 
+    const undoPayload = captureStoreSnapshot([STORE_KEYS.CLIENT_PAYMENT_REGISTRY]);
+
     setRegistry((current) => {
       if (
         existsInPayments ||
@@ -117,6 +135,16 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
       });
     });
 
+    if (!addError) {
+      recordActivity({
+        action: 'create',
+        entityType: 'project',
+        title: `Added project: ${nextProject.projectName}`,
+        detail: sheetProject,
+        undoPayload,
+      });
+    }
+
     return addError;
   }, [records]);
 
@@ -138,6 +166,8 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
         return `Client ${trimmedName} is already listed.`;
       }
 
+      const undoPayload = captureStoreSnapshot([STORE_KEYS.CLIENT_PAYMENT_REGISTRY]);
+
       setRegistry((current) =>
         persistRegistry({
           ...current,
@@ -146,6 +176,13 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
           ),
         }),
       );
+
+      recordActivity({
+        action: 'create',
+        entityType: 'client',
+        title: `Added client: ${trimmedName}`,
+        undoPayload,
+      });
 
       return null;
     },
@@ -159,21 +196,67 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
+      const undoPayload = captureStoreSnapshot([STORE_KEYS.CLIENT_PAYMENTS]);
+
       setRecords((current) => persistRecords([...current, nextRecord]));
+
+      recordActivity({
+        action: 'create',
+        entityType: 'client_payment',
+        title: `Added client payment: ${nextRecord.description}`,
+        detail: nextRecord.clientName,
+        undoPayload,
+      });
+
       return true;
     },
     [records, registry],
   );
 
   const updatePayment = useCallback((record: ClientPaymentRecord) => {
+    const before = records.find((existing) => existing.id === record.id);
+    const undoPayload = captureStoreSnapshot([STORE_KEYS.CLIENT_PAYMENTS]);
+
     setRecords((current) =>
       persistRecords(current.map((existing) => (existing.id === record.id ? record : existing))),
     );
-  }, []);
+
+    if (before) {
+      recordActivity({
+        action: 'update',
+        entityType: 'client_payment',
+        title: `Updated client payment: ${record.description}`,
+        detail: record.clientName,
+        changes: buildFieldChanges(
+          before as unknown as Record<string, unknown>,
+          record as unknown as Record<string, unknown>,
+          [
+            { key: 'description', label: 'Description' },
+            { key: 'amount', label: 'Amount' },
+            { key: 'paymentDate', label: 'Payment date' },
+          ],
+        ),
+        undoPayload,
+      });
+    }
+  }, [records]);
 
   const deletePayment = useCallback((id: number) => {
+    const deleted = records.find((record) => record.id === id);
+    const undoPayload = captureStoreSnapshot([STORE_KEYS.CLIENT_PAYMENTS]);
+
     setRecords((current) => persistRecords(current.filter((record) => record.id !== id)));
-  }, []);
+
+    if (deleted) {
+      recordActivity({
+        action: 'delete',
+        entityType: 'client_payment',
+        title: `Deleted client payment: ${deleted.description}`,
+        detail: deleted.clientName,
+        undoPayload,
+      });
+    }
+  }, [records]);
 
   const value = useMemo(
     () => ({

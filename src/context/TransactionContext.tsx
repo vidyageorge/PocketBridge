@@ -14,6 +14,9 @@ import {
 import { buildCashTransactionsFromClientPayments } from '@/lib/clientPaymentCashImport';
 import { inferStatementPeriod } from '@/lib/filters';
 import type { ClientPaymentRecord } from '@/types/clientPayment';
+import { buildFieldChanges, captureStoreSnapshot } from '@/lib/activityLog';
+import { recordActivity } from '@/lib/activityLogRecorder';
+import { STORE_KEYS } from '@/lib/storeKeys';
 import { getNextTransactionId, loadTransactions, saveTransactions } from '@/lib/storage';
 import type {
   AccountBalanceSnapshot,
@@ -48,6 +51,8 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
 
   const addTransaction = useCallback(
     (transaction: Omit<Transaction, 'id' | 'source'>, source: TransactionSource) => {
+      const undoPayload = captureStoreSnapshot([STORE_KEYS.TRANSACTIONS]);
+
       setTransactions((current) => {
         const nextTransaction: Transaction = {
           ...transaction,
@@ -58,19 +63,43 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         saveTransactions(nextTransactions);
         return nextTransactions;
       });
+
+      recordActivity({
+        action: 'create',
+        entityType: 'transaction',
+        title: `Added ${source} entry: ${transaction.desc}`,
+        detail: transaction.date,
+        undoPayload,
+      });
     },
     [],
   );
 
   const deleteTransaction = useCallback((id: number) => {
+    const deleted = transactions.find((transaction) => transaction.id === id);
+    const undoPayload = captureStoreSnapshot([STORE_KEYS.TRANSACTIONS]);
+
     setTransactions((current) => {
       const nextTransactions = current.filter((transaction) => transaction.id !== id);
       saveTransactions(nextTransactions);
       return nextTransactions;
     });
-  }, []);
+
+    if (deleted) {
+      recordActivity({
+        action: 'delete',
+        entityType: 'transaction',
+        title: `Deleted ${deleted.source} entry: ${deleted.desc}`,
+        detail: deleted.date,
+        undoPayload,
+      });
+    }
+  }, [transactions]);
 
   const updateTransaction = useCallback((transaction: Transaction) => {
+    const before = transactions.find((existing) => existing.id === transaction.id);
+    const undoPayload = captureStoreSnapshot([STORE_KEYS.TRANSACTIONS]);
+
     setTransactions((current) => {
       const nextTransactions = current.map((existing) => {
         if (existing.id !== transaction.id) {
@@ -105,7 +134,28 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       saveTransactions(nextTransactions);
       return nextTransactions;
     });
-  }, []);
+
+    if (before) {
+      recordActivity({
+        action: 'update',
+        entityType: 'transaction',
+        title: `Updated ${before.source} entry: ${transaction.desc}`,
+        detail: transaction.date,
+        changes: buildFieldChanges(
+          before as unknown as Record<string, unknown>,
+          transaction as unknown as Record<string, unknown>,
+          [
+            { key: 'date', label: 'Date' },
+            { key: 'desc', label: 'Description' },
+            { key: 'amount', label: 'Amount' },
+            { key: 'cat', label: 'Category' },
+            { key: 'type', label: 'Type' },
+          ],
+        ),
+        undoPayload,
+      });
+    }
+  }, [transactions]);
 
   const importCashFromClientPayments = useCallback(
     (clientPaymentRecords: ClientPaymentRecord[]) => {
@@ -133,6 +183,13 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   );
 
   const clearTransactionsBySource = useCallback((source: TransactionSource) => {
+    const removedCount = transactions.filter((transaction) => transaction.source === source).length;
+    const storeKeys =
+      source === 'bank'
+        ? [STORE_KEYS.TRANSACTIONS, STORE_KEYS.ACCOUNT_BALANCES]
+        : [STORE_KEYS.TRANSACTIONS];
+    const undoPayload = captureStoreSnapshot(storeKeys);
+
     setTransactions((current) => {
       const nextTransactions = current.filter((transaction) => transaction.source !== source);
       saveTransactions(nextTransactions);
@@ -146,13 +203,25 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         return nextSnapshots;
       });
     }
-  }, []);
+
+    recordActivity({
+      action: 'clear',
+      entityType: 'transaction',
+      title: `Cleared all ${source} entries (${removedCount})`,
+      undoPayload,
+    });
+  }, [transactions]);
 
   const importTransactions = useCallback(
     (
       rows: ImportRow[],
       options?: { statementSummary?: StatementBalanceSummary; fileName?: string },
     ) => {
+      const undoPayload = captureStoreSnapshot([
+        STORE_KEYS.TRANSACTIONS,
+        STORE_KEYS.ACCOUNT_BALANCES,
+      ]);
+
       if (options?.statementSummary) {
         setBalanceSnapshots((current) => {
           const nextSnapshots = upsertAccountBalanceSnapshot(current, {
@@ -167,6 +236,15 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       }
 
       if (rows.length === 0) {
+        if (options?.statementSummary) {
+          recordActivity({
+            action: 'import',
+            entityType: 'transaction',
+            title: `Imported bank balance snapshot`,
+            detail: options.fileName ?? 'statement',
+            undoPayload,
+          });
+        }
         return;
       }
 
@@ -213,6 +291,14 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
         const nextTransactions = [...imported, ...keptTransactions];
         saveTransactions(nextTransactions);
         return nextTransactions;
+      });
+
+      recordActivity({
+        action: 'import',
+        entityType: 'transaction',
+        title: `Imported bank statement (${rows.length} entries)`,
+        detail: options?.fileName ?? 'statement',
+        undoPayload,
       });
     },
     [],

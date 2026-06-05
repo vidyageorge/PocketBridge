@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ActivityLogProvider } from '@/context/ActivityLogContext';
 import { CustomOptionsProvider } from '@/context/CustomOptionsContext';
 import { DataBackendProvider } from '@/context/DataBackendProvider';
 import { ClientPaymentProvider } from '@/context/ClientPaymentContext';
@@ -17,6 +18,7 @@ import { DashboardTab } from '@/components/tabs/DashboardTab';
 import { ProjectClientTab, type ProjectClientSection } from '@/components/tabs/ProjectClientTab';
 import { ExpenseTab, type ExpenseSection } from '@/components/tabs/ExpenseTab';
 import { ProcurementTab } from '@/components/tabs/ProcurementTab';
+import { ActivityLogTab } from '@/components/tabs/ActivityLogTab';
 import { SuppliersTab } from '@/components/tabs/SuppliersTab';
 import type { DashboardView } from '@/lib/dashboardViews';
 
@@ -73,6 +75,7 @@ function AppContent() {
             <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
             <TabsTrigger value="projects-client">Projects &amp; Client</TabsTrigger>
             <TabsTrigger value="expense">Expense</TabsTrigger>
+            <TabsTrigger value="activity-log">Activity Log</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -108,6 +111,9 @@ function AppContent() {
           <TabsContent value="expense">
             <ExpenseTab activeSection={expenseSection} onSectionChange={setExpenseSection} />
           </TabsContent>
+          <TabsContent value="activity-log">
+            <ActivityLogTab />
+          </TabsContent>
         </Tabs>
       </main>
       <Footer />
@@ -123,11 +129,13 @@ export default function App() {
           <ProcurementProvider>
             <ClientPaymentProvider>
               <ExpenseProvider>
-                <PeriodFilterProvider>
-              <PeriodFilterBootstrap>
-                <AppContent />
-              </PeriodFilterBootstrap>
-                </PeriodFilterProvider>
+                <ActivityLogProvider>
+                  <PeriodFilterProvider>
+                    <PeriodFilterBootstrap>
+                      <AppContent />
+                    </PeriodFilterBootstrap>
+                  </PeriodFilterProvider>
+                </ActivityLogProvider>
               </ExpenseProvider>
             </ClientPaymentProvider>
           </ProcurementProvider>

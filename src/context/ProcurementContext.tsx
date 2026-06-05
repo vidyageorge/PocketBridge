@@ -6,7 +6,10 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { buildFieldChanges, captureStoreSnapshot } from '@/lib/activityLog';
+import { recordActivity } from '@/lib/activityLogRecorder';
 import { parseProcurementWorkbook } from '@/lib/procurement';
+import { STORE_KEYS } from '@/lib/storeKeys';
 import {
   getNextProcurementId,
   loadProcurementRecords,
@@ -51,6 +54,8 @@ export function ProcurementProvider({ children }: { children: ReactNode }) {
   );
 
   const addRecord = useCallback((record: ProcurementRecordInput) => {
+    const undoPayload = captureStoreSnapshot([STORE_KEYS.PROCUREMENT]);
+
     setRecords((current) => {
       const nextRecord: ProcurementRecord = {
         ...record,
@@ -58,20 +63,64 @@ export function ProcurementProvider({ children }: { children: ReactNode }) {
       };
       return persistRecords([...current, nextRecord]);
     });
+
+    recordActivity({
+      action: 'create',
+      entityType: 'procurement',
+      title: `Added procurement order: ${record.description}`,
+      detail: record.supplier,
+      undoPayload,
+    });
   }, []);
 
   const updateRecord = useCallback((record: ProcurementRecord) => {
+    const before = records.find((existing) => existing.id === record.id);
+    const undoPayload = captureStoreSnapshot([STORE_KEYS.PROCUREMENT]);
+
     setRecords((current) => {
       const nextRecords = current.map((existing) =>
         existing.id === record.id ? record : existing,
       );
       return persistRecords(nextRecords);
     });
-  }, []);
+
+    if (before) {
+      recordActivity({
+        action: 'update',
+        entityType: 'procurement',
+        title: `Updated procurement order: ${record.description}`,
+        detail: record.supplier,
+        changes: buildFieldChanges(
+          before as unknown as Record<string, unknown>,
+          record as unknown as Record<string, unknown>,
+          [
+            { key: 'description', label: 'Description' },
+            { key: 'supplier', label: 'Supplier' },
+            { key: 'amount', label: 'Amount' },
+            { key: 'paymentStatus', label: 'Payment status' },
+          ],
+        ),
+        undoPayload,
+      });
+    }
+  }, [records]);
 
   const deleteRecord = useCallback((id: number) => {
+    const deleted = records.find((record) => record.id === id);
+    const undoPayload = captureStoreSnapshot([STORE_KEYS.PROCUREMENT]);
+
     setRecords((current) => persistRecords(current.filter((record) => record.id !== id)));
-  }, []);
+
+    if (deleted) {
+      recordActivity({
+        action: 'delete',
+        entityType: 'procurement',
+        title: `Deleted procurement order: ${deleted.description}`,
+        detail: deleted.supplier,
+        undoPayload,
+      });
+    }
+  }, [records]);
 
   const addSupplier = useCallback(
     (supplierName: string): string | null => {
@@ -89,6 +138,8 @@ export function ProcurementProvider({ children }: { children: ReactNode }) {
         return `Supplier ${trimmedName} is already listed.`;
       }
 
+      const undoPayload = captureStoreSnapshot([STORE_KEYS.SUPPLIER_REGISTRY]);
+
       setSupplierRegistry((current) =>
         persistSupplierRegistry({
           supplierNames: [...current.supplierNames, trimmedName].sort((left, right) =>
@@ -97,16 +148,33 @@ export function ProcurementProvider({ children }: { children: ReactNode }) {
         }),
       );
 
+      recordActivity({
+        action: 'create',
+        entityType: 'supplier',
+        title: `Added supplier: ${trimmedName}`,
+        undoPayload,
+      });
+
       return null;
     },
     [records, supplierRegistry],
   );
 
   const replaceFromFile = useCallback(async (file: File) => {
+    const undoPayload = captureStoreSnapshot([STORE_KEYS.PROCUREMENT]);
     const buffer = await file.arrayBuffer();
     const parsed = parseProcurementWorkbook(buffer);
     setRecords(parsed);
     saveProcurementRecords(parsed);
+
+    recordActivity({
+      action: 'import',
+      entityType: 'procurement',
+      title: `Imported procurement workbook (${parsed.length} orders)`,
+      detail: file.name,
+      undoPayload,
+    });
+
     return parsed.length;
   }, []);
 
