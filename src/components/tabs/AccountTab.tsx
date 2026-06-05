@@ -4,7 +4,6 @@ import { confirmDeleteAll } from '@/lib/confirmDelete';
 import { exportTransactionsToExcel } from '@/lib/excel';
 import { filterTransactions } from '@/lib/filters';
 import { usePeriodFilter } from '@/context/PeriodFilterContext';
-import { useClientPayments } from '@/context/ClientPaymentContext';
 import { useTransactions } from '@/context/TransactionContext';
 import { Button } from '@/components/ui/button';
 import { MonthYearFilter } from '@/components/filters/MonthYearFilter';
@@ -22,14 +21,12 @@ type AccountTabProps = {
 };
 
 export function AccountTab({ source }: AccountTabProps) {
-  const { records: clientPaymentRecords } = useClientPayments();
   const {
     transactions,
     addTransaction,
     updateTransaction,
     deleteTransaction,
     clearTransactionsBySource,
-    importCashFromClientPayments,
   } = useTransactions();
   const { month, year, setMonth, setYear } = usePeriodFilter();
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -82,26 +79,6 @@ export function AccountTab({ source }: AccountTabProps) {
           onUpdate={updateTransaction}
           onCancelEdit={() => setEditingTransaction(null)}
         />
-      )}
-
-      {source === 'cash' && (
-        <>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                const count = importCashFromClientPayments(clientPaymentRecords);
-                window.alert(
-                  count > 0
-                    ? `Loaded ${count} cash lines from client payment workbook.`
-                    : 'No new cash lines to load (already imported or none in workbook).',
-                );
-              }}
-            >
-              Load cash from client payments
-            </Button>
-          </div>
-        </>
       )}
 
       {source === 'bank' && (

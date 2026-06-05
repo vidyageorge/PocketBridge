@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { initDataBackend, pushLocalStorageToApi, type DataBackendMode } from '@/lib/dataBackend';
-import { Button } from '@/components/ui/button';
+import { initDataBackend } from '@/lib/dataBackend';
 
 type DataBackendProviderProps = {
   children: ReactNode;
@@ -11,18 +10,14 @@ type DataBackendProviderProps = {
  */
 export function DataBackendProvider({ children }: DataBackendProviderProps) {
   const [ready, setReady] = useState(false);
-  const [mode, setMode] = useState<DataBackendMode>('local');
   const [error, setError] = useState<string | null>(null);
-  const [pushing, setPushing] = useState(false);
-  const [pushMessage, setPushMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     initDataBackend()
-      .then((backendMode) => {
+      .then(() => {
         if (!cancelled) {
-          setMode(backendMode);
           setReady(true);
         }
       })
@@ -56,47 +51,5 @@ export function DataBackendProvider({ children }: DataBackendProviderProps) {
     );
   }
 
-  const handlePushLocalToCloud = async () => {
-    setPushing(true);
-    setPushMessage(null);
-    try {
-      const keys = await pushLocalStorageToApi();
-      setPushMessage(`Uploaded ${keys.length} data bundle(s) to the server database.`);
-      window.location.reload();
-    } catch (pushError) {
-      setPushMessage(
-        pushError instanceof Error ? pushError.message : 'Upload to server failed.',
-      );
-    } finally {
-      setPushing(false);
-    }
-  };
-
-  return (
-    <>
-      {mode === 'api' && (
-        <div className="border-b border-border bg-nav-navy/5 px-4 py-2 text-center text-xs text-muted-foreground">
-          {import.meta.env.VITE_API_URL
-            ? 'Saving to cloud database via API'
-            : 'Saving to local database (SQLite on this computer)'}
-          {import.meta.env.VITE_API_URL && (
-            <span className="mt-1 block">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-1 h-7 text-xs"
-                disabled={pushing}
-                onClick={() => void handlePushLocalToCloud()}
-              >
-                {pushing ? 'Uploading…' : 'Upload browser data to database'}
-              </Button>
-              {pushMessage && <span className="mt-1 block text-expense">{pushMessage}</span>}
-            </span>
-          )}
-        </div>
-      )}
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }
