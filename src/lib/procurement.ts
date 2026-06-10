@@ -101,17 +101,34 @@ function parseProcurementRow(
   };
 }
 
-export function parseProcurementWorkbook(buffer: ArrayBuffer): ProcurementRecord[] {
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false, raw: true });
-  const records: ProcurementRecord[] = [];
-  let nextId = 1;
-
-  for (const rawSheetName of workbook.SheetNames) {
-    const sheetName = rawSheetName.trim();
-    const period = parseProcurementSheetName(sheetName);
-    if (!period) {
+function inferProcurementPeriodFromRows(
+  dataRows: Record<string, unknown>[],
+): { month: number; year: number } | null {
+  for (const row of dataRows) {
+    const orderDate = parseDateValue(getProcurementField(row, 'order date', 'orderdate'));
+    if (!orderDate) {
       continue;
     }
+    const [yearPart, monthPart] = orderDate.split('-');
+    const year = Number(yearPart);
+    const month = Number(monthPart);
+    if (year > 0 && month >= 1 && month <= 12) {
+      return { month, year };
+    }
+  }
+  return null;
+}
+
+export function parseProcurementFromWorkbook(
+  workbook: XLSX.WorkBook,
+  sheetNames: string[] = workbook.SheetNames,
+): ProcurementRecord[] {
+  const records: ProcurementRecord[] = [];
+  let nextId = 1;
+  const isExplicitSheetList = sheetNames.length !== workbook.SheetNames.length;
+
+  for (const rawSheetName of sheetNames) {
+    const sheetName = rawSheetName.trim();
 
     const sheet = workbook.Sheets[rawSheetName];
     if (!sheet) {
@@ -143,6 +160,13 @@ export function parseProcurementWorkbook(buffer: ArrayBuffer): ProcurementRecord
       defval: '',
     });
 
+    const period =
+      parseProcurementSheetName(sheetName) ??
+      (isExplicitSheetList ? inferProcurementPeriodFromRows(dataRows) : null);
+    if (!period) {
+      continue;
+    }
+
     dataRows.forEach((row) => {
       const parsed = parseProcurementRow(row, period, nextId);
       if (!parsed) {
@@ -154,6 +178,22 @@ export function parseProcurementWorkbook(buffer: ArrayBuffer): ProcurementRecord
   }
 
   return reassignProcurementIds(records);
+}
+
+export function parseProcurementWorkbook(buffer: ArrayBuffer): ProcurementRecord[] {
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false, raw: true });
+  return parseProcurementFromWorkbook(workbook);
+}
+
+function buildSupplierRegistryFromRecords(records: ProcurementRecord[]): SupplierRegistry {
+  const supplierNames = [
+    ...new Set(records.map((record) => record.supplier.trim()).filter(Boolean)),
+  ].sort((left, right) => left.localeCompare(right));
+  return { supplierNames };
+}
+
+export function inferSupplierRegistry(records: ProcurementRecord[]): SupplierRegistry {
+  return buildSupplierRegistryFromRecords(records);
 }
 
 function reassignProcurementIds(records: ProcurementRecord[]): ProcurementRecord[] {

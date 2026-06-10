@@ -49,11 +49,22 @@ export type ClientPaymentSummary = {
   totalGpay: number;
 };
 
+export type ProjectStatus = 'active' | 'completed';
+
 export type ClientProjectMeta = {
   sheetProject: string;
   projectCode: string;
   projectName: string;
   clientName: string;
+  status?: ProjectStatus;
+  completedAt?: string;
+};
+
+export type CompletedProjectSummary = ClientProjectMeta & {
+  paymentCount: number;
+  totalReceived: number;
+  firstPaymentDate: string;
+  lastPaymentDate: string;
 };
 
 export type ClientPaymentRegistry = {

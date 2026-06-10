@@ -9,7 +9,6 @@ import {
 } from '@/lib/procurement';
 import { useProcurement } from '@/context/ProcurementContext';
 import { ProcurementForm } from '@/components/procurement/ProcurementForm';
-import { ProcurementImport } from '@/components/procurement/ProcurementImport';
 import { ProcurementMetricCards } from '@/components/procurement/ProcurementMetricCards';
 import { ProcurementMonthFilter as ProcurementMonthFilterControl } from '@/components/procurement/ProcurementMonthFilter';
 import { ProcurementTable } from '@/components/procurement/ProcurementTable';
@@ -62,8 +61,6 @@ export function ProcurementTab() {
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">Procurement</h2>
-
-      <ProcurementImport />
 
       <ProcurementMonthFilterControl
         month={month}

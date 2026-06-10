@@ -11,6 +11,9 @@ import { buildFieldChanges, captureStoreSnapshot } from '@/lib/activityLog';
 import { recordActivity } from '@/lib/activityLogRecorder';
 import {
   buildClientPaymentRecord,
+  getClientProjectMeta,
+  isProjectCompleted,
+  mergeClientPaymentRegistry,
   normalizeSheetProjectLabel,
   parseClientPaymentWorkbook,
   validateAddClientProjectInput,
@@ -37,11 +40,14 @@ type ClientPaymentContextValue = {
   records: ClientPaymentRecord[];
   registry: ClientPaymentRegistry;
   replaceFromFile: (file: File) => Promise<number>;
+  importParsedData: (records: ClientPaymentRecord[], fileName: string) => number;
   addProject: (input: AddClientProjectInput) => string | null;
   addClient: (clientName: string) => string | null;
   addPayment: (input: ClientPaymentInput, useSplitAmounts: boolean) => boolean;
   updatePayment: (record: ClientPaymentRecord) => void;
   deletePayment: (id: number) => void;
+  completeProject: (sheetProject: string) => string | null;
+  reactivateProject: (sheetProject: string) => string | null;
 };
 
 const ClientPaymentContext = createContext<ClientPaymentContextValue | null>(null);
@@ -73,7 +79,9 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
     const parsed = parseClientPaymentWorkbook(buffer);
     setRecords(parsed);
     saveClientPaymentRecords(parsed);
-    setRegistry(persistRegistry(buildClientPaymentRegistry(parsed)));
+    setRegistry((current) =>
+      persistRegistry(mergeClientPaymentRegistry(buildClientPaymentRegistry(parsed), current)),
+    );
 
     recordActivity({
       action: 'import',
@@ -83,6 +91,15 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
       undoPayload,
     });
 
+    return parsed.length;
+  }, []);
+
+  const importParsedData = useCallback((parsed: ClientPaymentRecord[], _fileName: string) => {
+    setRecords(parsed);
+    saveClientPaymentRecords(parsed);
+    setRegistry((current) =>
+      persistRegistry(mergeClientPaymentRegistry(buildClientPaymentRegistry(parsed), current)),
+    );
     return parsed.length;
   }, []);
 
@@ -104,6 +121,7 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
       projectCode: input.projectCode.trim(),
       projectName: input.projectName.trim(),
       clientName: input.clientName.trim(),
+      status: 'active' as const,
     };
 
     let addError: string | null = null;
@@ -258,26 +276,112 @@ export function ClientPaymentProvider({ children }: { children: ReactNode }) {
     }
   }, [records]);
 
+  const updateProjectStatus = useCallback(
+    (
+      sheetProject: string,
+      status: 'active' | 'completed',
+      completedAt?: string,
+    ): string | null => {
+      const normalizedProject = normalizeSheetProjectLabel(sheetProject);
+      const meta = getClientProjectMeta(records, registry, normalizedProject);
+      if (!meta) {
+        return 'Project not found.';
+      }
+
+      if (status === 'completed' && isProjectCompleted(meta)) {
+        return 'Project is already completed.';
+      }
+
+      if (status === 'active' && !isProjectCompleted(meta)) {
+        return 'Project is already active.';
+      }
+
+      const undoPayload = captureStoreSnapshot([STORE_KEYS.CLIENT_PAYMENT_REGISTRY]);
+      const completionDate = completedAt ?? new Date().toISOString().slice(0, 10);
+
+      setRegistry((current) => {
+        const existsInRegistry = current.projects.some(
+          (project) => project.sheetProject === normalizedProject,
+        );
+        const nextProjects = existsInRegistry
+          ? current.projects.map((project) =>
+              project.sheetProject === normalizedProject
+                ? {
+                    ...project,
+                    status,
+                    completedAt: status === 'completed' ? completionDate : undefined,
+                  }
+                : project,
+            )
+          : [
+              ...current.projects,
+              {
+                ...meta,
+                status,
+                completedAt: status === 'completed' ? completionDate : undefined,
+              },
+            ];
+
+        return persistRegistry({
+          ...current,
+          projects: nextProjects.sort((left, right) =>
+            left.sheetProject.localeCompare(right.sheetProject),
+          ),
+        });
+      });
+
+      recordActivity({
+        action: 'update',
+        entityType: 'project',
+        title:
+          status === 'completed'
+            ? `Marked project as completed: ${meta.projectName || normalizedProject}`
+            : `Reactivated project: ${meta.projectName || normalizedProject}`,
+        detail: normalizedProject,
+        undoPayload,
+      });
+
+      return null;
+    },
+    [records, registry],
+  );
+
+  const completeProject = useCallback(
+    (sheetProject: string) => updateProjectStatus(sheetProject, 'completed'),
+    [updateProjectStatus],
+  );
+
+  const reactivateProject = useCallback(
+    (sheetProject: string) => updateProjectStatus(sheetProject, 'active'),
+    [updateProjectStatus],
+  );
+
   const value = useMemo(
     () => ({
       records,
       registry,
       replaceFromFile,
+      importParsedData,
       addProject,
       addClient,
       addPayment,
       updatePayment,
       deletePayment,
+      completeProject,
+      reactivateProject,
     }),
     [
       records,
       registry,
       replaceFromFile,
+      importParsedData,
       addProject,
       addClient,
       addPayment,
       updatePayment,
       deletePayment,
+      completeProject,
+      reactivateProject,
     ],
   );
 

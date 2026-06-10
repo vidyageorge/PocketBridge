@@ -35,6 +35,24 @@ function extractSpentBy(description: string): string | undefined {
   return undefined;
 }
 
+export function isInferredCashTransaction(transaction: Transaction): boolean {
+  return transaction.source === 'cash' && /^\[[^\]]+\]/.test(transaction.desc);
+}
+
+/**
+ * Rebuilds inferred cash ledger lines from project payment records, keeping manual cash entries.
+ */
+export function syncCashTransactionsFromClientPayments(
+  records: ClientPaymentRecord[],
+  existingTransactions: Transaction[],
+): Transaction[] {
+  const preserved = existingTransactions.filter(
+    (transaction) => transaction.source !== 'cash' || !isInferredCashTransaction(transaction),
+  );
+  const inferred = buildCashTransactionsFromClientPayments(records, preserved);
+  return [...inferred, ...preserved];
+}
+
 /**
  * Converts client-payment workbook rows with a Cash amount into petty-cash ledger lines.
  */

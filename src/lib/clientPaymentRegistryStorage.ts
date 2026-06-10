@@ -1,5 +1,6 @@
 import { getCachedStoreValue, setCachedStoreValue } from '@/lib/dataBackend';
 import { STORE_KEYS } from '@/lib/storeKeys';
+import { normalizeProjectStatus } from '@/lib/clientPayment';
 import type { ClientPaymentRegistry } from '@/types/clientPayment';
 import { EMPTY_CLIENT_PAYMENT_REGISTRY } from '@/types/clientPayment';
 
@@ -16,7 +17,9 @@ export function loadClientPaymentRegistry(): ClientPaymentRegistry {
   }
 
   return {
-    projects: Array.isArray(parsed.projects) ? parsed.projects : [],
+    projects: Array.isArray(parsed.projects)
+      ? parsed.projects.map((project) => normalizeProjectStatus(project))
+      : [],
     clientNames: Array.isArray(parsed.clientNames) ? parsed.clientNames : [],
   };
 }

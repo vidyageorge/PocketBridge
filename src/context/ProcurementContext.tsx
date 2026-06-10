@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { buildFieldChanges, captureStoreSnapshot } from '@/lib/activityLog';
 import { recordActivity } from '@/lib/activityLogRecorder';
-import { parseProcurementWorkbook } from '@/lib/procurement';
+import { inferSupplierRegistry, parseProcurementWorkbook } from '@/lib/procurement';
 import { STORE_KEYS } from '@/lib/storeKeys';
 import {
   getNextProcurementId,
@@ -33,6 +33,7 @@ type ProcurementContextValue = {
   deleteRecord: (id: number) => void;
   addSupplier: (supplierName: string) => string | null;
   replaceFromFile: (file: File) => Promise<number>;
+  importParsedData: (records: ProcurementRecord[], fileName: string) => number;
 };
 
 const ProcurementContext = createContext<ProcurementContextValue | null>(null);
@@ -178,6 +179,16 @@ export function ProcurementProvider({ children }: { children: ReactNode }) {
     return parsed.length;
   }, []);
 
+  const importParsedData = useCallback((parsed: ProcurementRecord[], _fileName: string) => {
+    const nextRegistry = inferSupplierRegistry(parsed);
+
+    setRecords(parsed);
+    saveProcurementRecords(parsed);
+    setSupplierRegistry(persistSupplierRegistry(nextRegistry));
+
+    return parsed.length;
+  }, []);
+
   const value = useMemo(
     () => ({
       records,
@@ -187,6 +198,7 @@ export function ProcurementProvider({ children }: { children: ReactNode }) {
       deleteRecord,
       addSupplier,
       replaceFromFile,
+      importParsedData,
     }),
     [
       records,
@@ -196,6 +208,7 @@ export function ProcurementProvider({ children }: { children: ReactNode }) {
       deleteRecord,
       addSupplier,
       replaceFromFile,
+      importParsedData,
     ],
   );
 

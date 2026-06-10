@@ -27,6 +27,7 @@ import type {
 type ExpenseContextValue = {
   data: ExpenseData;
   replaceFromFile: (file: File) => Promise<number>;
+  importParsedData: (data: ExpenseData, fileName: string) => number;
   addEmployeeExpense: (record: EmployeeExpenseInput) => void;
   updateEmployeeExpense: (record: EmployeeExpenseRecord) => void;
   deleteEmployeeExpense: (id: number) => void;
@@ -60,6 +61,12 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
       undoPayload,
     });
 
+    return parsed.project.length + parsed.employee.length;
+  }, []);
+
+  const importParsedData = useCallback((parsed: ExpenseData, _fileName: string) => {
+    setData(parsed);
+    saveExpenseData(parsed);
     return parsed.project.length + parsed.employee.length;
   }, []);
 
@@ -225,6 +232,7 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
     () => ({
       data,
       replaceFromFile,
+      importParsedData,
       addEmployeeExpense,
       updateEmployeeExpense,
       deleteEmployeeExpense,
@@ -235,6 +243,7 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
     [
       data,
       replaceFromFile,
+      importParsedData,
       addEmployeeExpense,
       updateEmployeeExpense,
       deleteEmployeeExpense,

@@ -12,7 +12,7 @@ export function ClientPaymentProjectInfo({ project }: ClientPaymentProjectInfoPr
 
   return (
     <Card>
-      <CardContent className="space-y-3 pt-6">
+      <CardContent className="grid gap-4 pt-6 sm:grid-cols-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Project code

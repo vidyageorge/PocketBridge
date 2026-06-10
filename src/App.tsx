@@ -11,41 +11,31 @@ import { TransactionProvider } from '@/context/TransactionContext';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import { DashboardMenuTrigger } from '@/components/dashboard/DashboardMenuTrigger';
+import { ProjectMenuTrigger } from '@/components/projects/ProjectMenuTrigger';
+import { CashSyncBridge } from '@/components/sync/CashSyncBridge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AccountTab } from '@/components/tabs/AccountTab';
-import { CombinedStatementTab } from '@/components/tabs/CombinedStatementTab';
 import { DashboardTab } from '@/components/tabs/DashboardTab';
-import { ProjectClientTab, type ProjectClientSection } from '@/components/tabs/ProjectClientTab';
-import { ExpenseTab, type ExpenseSection } from '@/components/tabs/ExpenseTab';
-import { ProcurementTab } from '@/components/tabs/ProcurementTab';
+import { ProjectTab } from '@/components/tabs/ProjectTab';
+import { ProjectHistoryTab } from '@/components/tabs/ProjectHistoryTab';
 import { ActivityLogTab } from '@/components/tabs/ActivityLogTab';
-import { SuppliersTab } from '@/components/tabs/SuppliersTab';
 import type { DashboardView } from '@/lib/dashboardViews';
 
 function AppContent() {
   const [mainTab, setMainTab] = useState('dashboard');
   const [dashboardView, setDashboardView] = useState<DashboardView>('financial');
-  const [expenseSection, setExpenseSection] = useState<ExpenseSection>('project');
-  const [projectClientSection, setProjectClientSection] =
-    useState<ProjectClientSection>('projects');
+  const [selectedProject, setSelectedProject] = useState('');
 
-  const openProjectsPage = () => {
-    setProjectClientSection('projects');
-    setMainTab('projects-client');
+  const openProjectsPage = (project?: string) => {
+    if (project) {
+      setSelectedProject(project);
+    }
+    setMainTab('project');
   };
 
-  const openClientsPage = () => {
-    setProjectClientSection('clients');
-    setMainTab('projects-client');
-  };
-
-  const openEmployeesPage = () => {
-    setExpenseSection('employee');
-    setMainTab('expense');
-  };
-
-  const openSuppliersPage = () => {
-    setMainTab('suppliers');
+  const openDashboardView = (view: DashboardView) => {
+    setDashboardView(view);
+    setMainTab('dashboard');
   };
 
   return (
@@ -70,21 +60,26 @@ function AppContent() {
             />
             <TabsTrigger value="bank">Bank Account</TabsTrigger>
             <TabsTrigger value="cash">Cash Account</TabsTrigger>
-            <TabsTrigger value="statement">Combined Statement</TabsTrigger>
-            <TabsTrigger value="procurement">Procurement</TabsTrigger>
-            <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
-            <TabsTrigger value="projects-client">Projects &amp; Client</TabsTrigger>
-            <TabsTrigger value="expense">Expense</TabsTrigger>
+            <ProjectMenuTrigger
+              isActive={mainTab === 'project'}
+              selectedProject={selectedProject}
+              onOpenProjects={() => setMainTab('project')}
+              onProjectSelect={(project) => {
+                setSelectedProject(project);
+                setMainTab('project');
+              }}
+            />
+            <TabsTrigger value="project-history">Project History</TabsTrigger>
             <TabsTrigger value="activity-log">Activity Log</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
             <DashboardTab
               activeView={dashboardView}
-              onOpenProjectsPage={openProjectsPage}
-              onOpenClientsPage={openClientsPage}
-              onOpenEmployeesPage={openEmployeesPage}
-              onOpenSuppliersPage={openSuppliersPage}
+              onOpenProjectsPage={() => openProjectsPage()}
+              onOpenClientsPage={() => openDashboardView('clients')}
+              onOpenEmployeesPage={() => openDashboardView('financial')}
+              onOpenSuppliersPage={() => openDashboardView('suppliers')}
             />
           </TabsContent>
           <TabsContent value="bank">
@@ -93,23 +88,15 @@ function AppContent() {
           <TabsContent value="cash">
             <AccountTab source="cash" />
           </TabsContent>
-          <TabsContent value="statement">
-            <CombinedStatementTab />
-          </TabsContent>
-          <TabsContent value="procurement">
-            <ProcurementTab />
-          </TabsContent>
-          <TabsContent value="suppliers">
-            <SuppliersTab />
-          </TabsContent>
-          <TabsContent value="projects-client">
-            <ProjectClientTab
-              activeSection={projectClientSection}
-              onSectionChange={setProjectClientSection}
+          <TabsContent value="project">
+            <ProjectTab
+              selectedProject={selectedProject}
+              onProjectChange={setSelectedProject}
+              onOpenHistory={() => setMainTab('project-history')}
             />
           </TabsContent>
-          <TabsContent value="expense">
-            <ExpenseTab activeSection={expenseSection} onSectionChange={setExpenseSection} />
+          <TabsContent value="project-history">
+            <ProjectHistoryTab />
           </TabsContent>
           <TabsContent value="activity-log">
             <ActivityLogTab />
@@ -132,6 +119,7 @@ export default function App() {
                 <ActivityLogProvider>
                   <PeriodFilterProvider>
                     <PeriodFilterBootstrap>
+                      <CashSyncBridge />
                       <AppContent />
                     </PeriodFilterBootstrap>
                   </PeriodFilterProvider>

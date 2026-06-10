@@ -1,36 +1,26 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Download } from 'lucide-react';
-import { confirmDeleteAll } from '@/lib/confirmDelete';
 import { exportTransactionsToExcel } from '@/lib/excel';
 import { filterTransactions } from '@/lib/filters';
 import { usePeriodFilter } from '@/context/PeriodFilterContext';
 import { useTransactions } from '@/context/TransactionContext';
 import { Button } from '@/components/ui/button';
 import { MonthYearFilter } from '@/components/filters/MonthYearFilter';
-import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { BankStatementImport } from '@/components/transactions/BankStatementImport';
 import { AccountBalanceCards } from '@/components/dashboard/AccountBalanceCards';
 import { buildCashLedgerRows, summarizeCashLedger } from '@/lib/cashLedger';
 import { CashLedgerSummaryCards } from '@/components/transactions/CashLedgerSummaryCards';
 import { CashLedgerTable } from '@/components/transactions/CashLedgerTable';
 import { TransactionTable } from '@/components/transactions/TransactionTable';
-import type { Transaction, TransactionSource } from '@/types/transaction';
+import type { TransactionSource } from '@/types/transaction';
 
 type AccountTabProps = {
   source: TransactionSource;
 };
 
 export function AccountTab({ source }: AccountTabProps) {
-  const {
-    transactions,
-    addTransaction,
-    updateTransaction,
-    deleteTransaction,
-    clearTransactionsBySource,
-  } = useTransactions();
+  const { transactions } = useTransactions();
   const { month, year, setMonth, setYear } = usePeriodFilter();
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-
   const accountTransactions = useMemo(
     () => transactions.filter((transaction) => transaction.source === source),
     [transactions, source],
@@ -53,32 +43,15 @@ export function AccountTab({ source }: AccountTabProps) {
 
   const label = source === 'bank' ? 'Bank Account' : 'Cash Account';
 
-  const handleEditTransaction = (id: number) => {
-    const record = transactions.find((transaction) => transaction.id === id);
-    if (record) {
-      setEditingTransaction(record);
-    }
-  };
-
-  const handleDeleteTransaction = (id: number) => {
-    deleteTransaction(id);
-    if (editingTransaction?.id === id) {
-      setEditingTransaction(null);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {source === 'bank' && <BankStatementImport />}
 
-      {(source === 'cash' || editingTransaction) && (
-        <TransactionForm
-          source={source}
-          editingTransaction={editingTransaction}
-          onSubmit={(transaction) => addTransaction(transaction, source)}
-          onUpdate={updateTransaction}
-          onCancelEdit={() => setEditingTransaction(null)}
-        />
+      {source === 'cash' && (
+        <p className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          Cash entries are inferred automatically from project transactions with a cash amount.
+          Update project payments on the Project tab to change this ledger.
+        </p>
       )}
 
       {source === 'bank' && (
@@ -96,23 +69,6 @@ export function AccountTab({ source }: AccountTabProps) {
           onYearChange={setYear}
         />
         <div className="flex flex-wrap gap-2">
-          {source === 'cash' && accountTransactions.length > 0 && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (
-                  confirmDeleteAll(
-                    accountTransactions.length,
-                    `${label.toLowerCase()} entries`,
-                  )
-                ) {
-                  clearTransactionsBySource(source);
-                }
-              }}
-            >
-              Delete all
-            </Button>
-          )}
           <Button
             variant="outline"
             onClick={() => exportTransactionsToExcel(transactions, source, month, year)}
@@ -132,8 +88,6 @@ export function AccountTab({ source }: AccountTabProps) {
       {source === 'cash' ? (
         <CashLedgerTable
           rows={cashLedgerRows}
-          onEdit={handleEditTransaction}
-          onDelete={handleDeleteTransaction}
           title={`Petty cash ledger (${cashLedgerRows.length} entries)`}
         />
       ) : (

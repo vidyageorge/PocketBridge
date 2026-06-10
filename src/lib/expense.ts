@@ -172,15 +172,17 @@ function parseSummarySheet(
   return { project, employee };
 }
 
-export function parseExpenseWorkbook(buffer: ArrayBuffer): ExpenseData {
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false, raw: true });
+export function parseExpenseFromWorkbook(
+  workbook: XLSX.WorkBook,
+  sheetNames: string[] = workbook.SheetNames,
+): ExpenseData {
   const project: ProjectExpenseRecord[] = [];
   const employee: EmployeeExpenseRecord[] = [];
   const seenPeriods = new Set<string>();
   const nextProjectId = { value: 1 };
   const nextEmployeeId = { value: 1 };
 
-  for (const sheetName of workbook.SheetNames) {
+  for (const sheetName of sheetNames) {
     const period = parseSummarySheetName(sheetName);
     if (!period) {
       continue;
@@ -204,6 +206,11 @@ export function parseExpenseWorkbook(buffer: ArrayBuffer): ExpenseData {
   }
 
   return { project, employee };
+}
+
+export function parseExpenseWorkbook(buffer: ArrayBuffer): ExpenseData {
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false, raw: true });
+  return parseExpenseFromWorkbook(workbook);
 }
 
 type PeriodRecord = { sheetMonth: number; sheetYear: number };

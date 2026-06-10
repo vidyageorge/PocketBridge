@@ -8,6 +8,8 @@ import type {
   ClientPaymentRegistry,
   ClientPaymentSummary,
   ClientProjectMeta,
+  CompletedProjectSummary,
+  ProjectStatus,
 } from '@/types/clientPayment';
 import { EMPTY_CLIENT_PAYMENT_REGISTRY } from '@/types/clientPayment';
 
@@ -120,12 +122,14 @@ function parseClientPaymentRow(
   };
 }
 
-export function parseClientPaymentWorkbook(buffer: ArrayBuffer): ClientPaymentRecord[] {
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false, raw: true });
+export function parseClientPaymentFromWorkbook(
+  workbook: XLSX.WorkBook,
+  sheetNames: string[] = workbook.SheetNames,
+): ClientPaymentRecord[] {
   const records: ClientPaymentRecord[] = [];
   let nextId = 1;
 
-  for (const sheetName of workbook.SheetNames) {
+  for (const sheetName of sheetNames) {
     const sheet = workbook.Sheets[sheetName];
     if (!sheet) {
       continue;
@@ -158,6 +162,11 @@ export function parseClientPaymentWorkbook(buffer: ArrayBuffer): ClientPaymentRe
   }
 
   return records.map((record, index) => ({ ...record, id: index + 1 }));
+}
+
+export function parseClientPaymentWorkbook(buffer: ArrayBuffer): ClientPaymentRecord[] {
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: false, raw: true });
+  return parseClientPaymentFromWorkbook(workbook);
 }
 
 function matchesTextField(value: string, filter: string): boolean {
@@ -420,6 +429,17 @@ export function buildClientPaymentRecord(
   };
 }
 
+export function normalizeProjectStatus(project: ClientProjectMeta): ClientProjectMeta {
+  return {
+    ...project,
+    status: project.status ?? 'active',
+  };
+}
+
+export function isProjectCompleted(project: ClientProjectMeta): boolean {
+  return normalizeProjectStatus(project).status === 'completed';
+}
+
 export function getClientProjectList(
   records: ClientPaymentRecord[],
   registry: ClientPaymentRegistry = EMPTY_CLIENT_PAYMENT_REGISTRY,
@@ -427,7 +447,7 @@ export function getClientProjectList(
   const projects = new Map<string, ClientProjectMeta>();
 
   for (const project of registry.projects) {
-    projects.set(project.sheetProject, project);
+    projects.set(project.sheetProject, normalizeProjectStatus(project));
   }
 
   for (const record of records) {
@@ -437,6 +457,7 @@ export function getClientProjectList(
         projectCode: record.projectCode,
         projectName: record.projectName,
         clientName: record.clientName,
+        status: 'active',
       });
     }
   }
@@ -446,12 +467,83 @@ export function getClientProjectList(
   );
 }
 
+export function getActiveClientProjectList(
+  records: ClientPaymentRecord[],
+  registry: ClientPaymentRegistry = EMPTY_CLIENT_PAYMENT_REGISTRY,
+): ClientProjectMeta[] {
+  return getClientProjectList(records, registry).filter((project) => !isProjectCompleted(project));
+}
+
+export function getCompletedClientProjectList(
+  records: ClientPaymentRecord[],
+  registry: ClientPaymentRegistry = EMPTY_CLIENT_PAYMENT_REGISTRY,
+): ClientProjectMeta[] {
+  return getClientProjectList(records, registry).filter((project) => isProjectCompleted(project));
+}
+
+export function getCompletedProjectSummaries(
+  records: ClientPaymentRecord[],
+  registry: ClientPaymentRegistry = EMPTY_CLIENT_PAYMENT_REGISTRY,
+): CompletedProjectSummary[] {
+  return getCompletedClientProjectList(records, registry)
+    .map((project) => {
+      const projectRecords = filterClientPaymentsByProject(records, project.sheetProject);
+      const paymentDates = projectRecords
+        .map((record) => record.paymentDate)
+        .filter(Boolean)
+        .sort();
+
+      return {
+        ...project,
+        paymentCount: projectRecords.length,
+        totalReceived: projectRecords.reduce((sum, record) => sum + record.amount, 0),
+        firstPaymentDate: paymentDates[0] ?? '',
+        lastPaymentDate: paymentDates[paymentDates.length - 1] ?? '',
+      };
+    })
+    .sort((left, right) => (right.completedAt ?? '').localeCompare(left.completedAt ?? ''));
+}
+
 export function getDefaultClientProject(
   records: ClientPaymentRecord[],
   registry: ClientPaymentRegistry = EMPTY_CLIENT_PAYMENT_REGISTRY,
 ): string {
-  const projects = getClientProjectList(records, registry);
+  const projects = getActiveClientProjectList(records, registry);
   return projects[0]?.sheetProject ?? '';
+}
+
+export function mergeClientPaymentRegistry(
+  incoming: ClientPaymentRegistry,
+  existing: ClientPaymentRegistry,
+): ClientPaymentRegistry {
+  const existingBySheet = new Map(
+    existing.projects.map((project) => [project.sheetProject, normalizeProjectStatus(project)]),
+  );
+  const mergedProjects = new Map<string, ClientProjectMeta>();
+
+  for (const project of incoming.projects) {
+    const previous = existingBySheet.get(project.sheetProject);
+    mergedProjects.set(project.sheetProject, {
+      ...project,
+      status: previous?.status ?? project.status ?? 'active',
+      completedAt: previous?.status === 'completed' ? previous.completedAt : project.completedAt,
+    });
+  }
+
+  for (const project of existing.projects) {
+    if (isProjectCompleted(project) && !mergedProjects.has(project.sheetProject)) {
+      mergedProjects.set(project.sheetProject, normalizeProjectStatus(project));
+    }
+  }
+
+  const clientNames = new Set([...existing.clientNames, ...incoming.clientNames]);
+
+  return {
+    projects: [...mergedProjects.values()].sort((left, right) =>
+      left.sheetProject.localeCompare(right.sheetProject),
+    ),
+    clientNames: [...clientNames].sort((left, right) => left.localeCompare(right)),
+  };
 }
 
 export function getClientProjectMeta(
@@ -477,6 +569,7 @@ export function getClientProjectMeta(
     projectCode: record.projectCode,
     projectName: record.projectName,
     clientName: record.clientName,
+    status: 'active' as ProjectStatus,
   };
 }
 
@@ -643,6 +736,7 @@ export function buildClientPaymentRegistry(records: ClientPaymentRecord[]): Clie
         projectCode: record.projectCode,
         projectName: record.projectName,
         clientName: record.clientName,
+        status: 'active',
       });
     }
 

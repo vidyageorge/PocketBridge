@@ -11,7 +11,7 @@ import {
   saveAccountBalanceSnapshots,
   upsertAccountBalanceSnapshot,
 } from '@/lib/accountBalanceStorage';
-import { buildCashTransactionsFromClientPayments } from '@/lib/clientPaymentCashImport';
+import { syncCashTransactionsFromClientPayments } from '@/lib/clientPaymentCashImport';
 import { inferStatementPeriod } from '@/lib/filters';
 import type { ClientPaymentRecord } from '@/types/clientPayment';
 import { buildFieldChanges, captureStoreSnapshot } from '@/lib/activityLog';
@@ -34,7 +34,7 @@ type TransactionContextValue = {
   deleteTransaction: (id: number) => void;
   updateTransaction: (transaction: Transaction) => void;
   clearTransactionsBySource: (source: TransactionSource) => void;
-  importCashFromClientPayments: (records: ClientPaymentRecord[]) => number;
+  syncCashFromClientPayments: (records: ClientPaymentRecord[]) => void;
   importTransactions: (
     rows: ImportRow[],
     options?: { statementSummary?: StatementBalanceSummary; fileName?: string },
@@ -157,30 +157,16 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
   }, [transactions]);
 
-  const importCashFromClientPayments = useCallback(
-    (clientPaymentRecords: ClientPaymentRecord[]) => {
-      let importedCount = 0;
-
-      setTransactions((current) => {
-        const imported = buildCashTransactionsFromClientPayments(
-          clientPaymentRecords,
-          current,
-        );
-        importedCount = imported.length;
-
-        if (imported.length === 0) {
-          return current;
-        }
-
-        const nextTransactions = [...imported, ...current];
-        saveTransactions(nextTransactions);
-        return nextTransactions;
-      });
-
-      return importedCount;
-    },
-    [],
-  );
+  const syncCashFromClientPayments = useCallback((clientPaymentRecords: ClientPaymentRecord[]) => {
+    setTransactions((current) => {
+      const nextTransactions = syncCashTransactionsFromClientPayments(
+        clientPaymentRecords,
+        current,
+      );
+      saveTransactions(nextTransactions);
+      return nextTransactions;
+    });
+  }, []);
 
   const clearTransactionsBySource = useCallback((source: TransactionSource) => {
     const removedCount = transactions.filter((transaction) => transaction.source === source).length;
@@ -312,7 +298,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       deleteTransaction,
       updateTransaction,
       clearTransactionsBySource,
-      importCashFromClientPayments,
+      syncCashFromClientPayments,
       importTransactions,
     }),
     [
@@ -322,7 +308,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       deleteTransaction,
       updateTransaction,
       clearTransactionsBySource,
-      importCashFromClientPayments,
+      syncCashFromClientPayments,
       importTransactions,
     ],
   );

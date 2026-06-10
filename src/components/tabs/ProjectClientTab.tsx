@@ -18,7 +18,6 @@ import { AddClientForm } from '@/components/clientPayments/AddClientForm';
 import { AddProjectForm } from '@/components/clientPayments/AddProjectForm';
 import { ClientListButtons } from '@/components/clientPayments/ClientListButtons';
 import { ClientPaymentEntryForm } from '@/components/clientPayments/ClientPaymentEntryForm';
-import { ClientPaymentImport } from '@/components/clientPayments/ClientPaymentImport';
 import { ClientPaymentMetricCards } from '@/components/clientPayments/ClientPaymentMetricCards';
 import { ClientPaymentProjectButtons } from '@/components/clientPayments/ClientPaymentProjectButtons';
 import { ClientPaymentProjectInfo } from '@/components/clientPayments/ClientPaymentProjectInfo';
@@ -133,8 +132,6 @@ export function ProjectClientTab({ activeSection, onSectionChange }: ProjectClie
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">Projects &amp; Client</h2>
-
-      <ClientPaymentImport />
 
       <Tabs
         value={activeSection}

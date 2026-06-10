@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { getLatestExpensePeriod } from '@/lib/expense';
 import { useExpenses } from '@/context/ExpenseContext';
 import { EmployeeExpensePanel } from '@/components/expenses/EmployeeExpensePanel';
-import { ExpenseImport } from '@/components/expenses/ExpenseImport';
 import { ExpenseMonthFilter } from '@/components/expenses/ExpenseMonthFilter';
 import { ProjectExpensePanel } from '@/components/expenses/ProjectExpensePanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,8 +27,6 @@ export function ExpenseTab({ activeSection, onSectionChange }: ExpenseTabProps) 
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">Expense</h2>
-
-      <ExpenseImport />
 
       <ExpenseMonthFilter
         month={month}
