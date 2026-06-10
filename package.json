@@ -10,6 +10,8 @@
     "start:api": "node server/index.mjs",
     "build:api": "npm install --prefix server",
     "build": "tsc -b && vite build",
+    "build:android": "tsc -b && vite build --mode android",
+    "build:apk": "powershell -ExecutionPolicy Bypass -File scripts/build-android-apk.ps1",
     "lint": "eslint .",
     "preview": "vite preview",
     "seed:procurement": "node scripts/generate-procurement-seed.mjs",
@@ -17,6 +19,7 @@
     "push:store": "node server/scripts/push-store.mjs"
   },
   "dependencies": {
+    "@capacitor/core": "^8.4.0",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.4",
@@ -32,6 +35,8 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^24.12.4",

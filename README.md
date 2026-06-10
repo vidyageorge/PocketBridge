@@ -43,6 +43,17 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 npm run build
 ```
 
+## Android APK
+
+The mobile app is the same React UI wrapped with Capacitor (WebView), calling the hosted API on Render — not a native rewrite.
+
+| Method | Command / action |
+|--------|------------------|
+| **Cloud build** (no Android Studio) | GitHub → Actions → **Build Android APK** → download artifact |
+| **Local build** (needs Java 21 + Android SDK) | `npm run build:apk` → `PocketBridge-debug.apk` |
+
+Full guide: [BUILD_APK.md](./BUILD_APK.md)
+
 ## Data Storage
 
 With the local API running, data is saved to `server/data/pocketbridge.db`. Without the API, the app uses browser `localStorage`. See [LOCAL_SETUP.md](./LOCAL_SETUP.md) and [DATABASE.md](./DATABASE.md).
